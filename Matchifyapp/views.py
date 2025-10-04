@@ -477,6 +477,57 @@ def get_top_artists(user, time_range='medium_term'):
         print("Failed to parse JSON:", str(e))  # Debug print
         print("Raw response:", result.content)  # Debug print
         return {'Error': f'Issue with request: {str(e)}'}
+
+
+def get_top_tracks(user, time_range='medium_term'):
+    """Fetch a user's top tracks from Spotify. Returns list or {'Error': msg}."""
+    token = get_token(user)
+    print("Checking token for tracks:", token is not None)  # Debug print
+    if not token:
+        print("No token found for user (tracks):", user.username)  # Debug print
+        return {'Error': 'No valid token found.'}
+
+    url = "https://api.spotify.com/v1/me/top/tracks"
+    headers = get_auth_header(user)
+    if not headers:
+        return {'Error': 'No valid token found.'}
+
+    params = {
+        'time_range': time_range,
+        'limit': 10
+    }
+
+    print("Making request to (tracks):", url)  # Debug print
+    print("With headers (tracks):", headers)  # Debug print
+    print("With params (tracks):", params)  # Debug print
+
+    result = get(url, headers=headers, params=params)
+    print("Response status code (tracks):", result.status_code)  # Debug print
+    print("Response content (tracks):", result.content[:500])  # Debug print
+
+    try:
+        json_result = result.json()
+        if 'items' in json_result:
+            return json_result['items']
+        else:
+            print("JSON response for tracks but no items:", json_result)  # Debug print
+            return {'Error': 'No top tracks found.'}
+    except Exception as e:
+        print("Failed to parse JSON for tracks:", str(e))  # Debug print
+        print("Raw response (tracks):", result.content)  # Debug print
+        return {'Error': f'Issue with request: {str(e)}'}
+
+
+@login_required
+def top_tracks(request):
+    # Render a full page showing a user's top tracks (for the current logged-in user)
+    tracks_range = request.GET.get('tracks_range', 'medium_term')
+    try:
+        tracks = get_top_tracks(request.user, time_range=tracks_range)
+    except Exception as e:
+        tracks = {'Error': str(e)}
+
+    return render(request, 'toptracks.html', {'top_tracks': tracks, 'time_range': tracks_range})
     
 @login_required
 def top_artists(request):
@@ -667,6 +718,17 @@ def profile(request, username):
             top_artists = get_top_artists(user, time_range='medium_term')
         except:
             pass
+
+    # Track range and top tracks (safe defaults). Templates expect these keys.
+    tracks_range = request.GET.get('tracks_range', 'medium_term')
+    top_tracks = None
+    if user_spotify:
+        try:
+            # If a helper to fetch top tracks exists, prefer using it. Otherwise leave None.
+            if 'get_top_tracks' in globals():
+                top_tracks = globals()['get_top_tracks'](user, time_range=tracks_range)
+        except Exception:
+            top_tracks = None
 
     # Safely fetch profile bio without triggering a ProgrammingError if the Profile table doesn't exist yet
     profile_exists = False
