@@ -16,7 +16,8 @@ document.addEventListener("DOMContentLoaded", function () {
     let hasMoved = false;
     let container, simulation;
 
-    const currentUserId = 1000;
+    let currentUserId = 1000;
+    let currentUserName = null;
 
     const zoom = d3.zoom()
         .scaleExtent([0.5, 3])
@@ -108,6 +109,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
             // DEBUG: Log all user IDs and usernames
             console.log('All users:', allUsers);
+
+            // If the server provides which user is the current user, use that ID
+            const detectedCurrent = allUsers.find(u => u.isCurrentUser || u.is_current_user || u.isCurrent);
+            if (detectedCurrent) {
+                currentUserId = detectedCurrent.id;
+                currentUserName = detectedCurrent.username || null;
+            }
+
+            console.log('detectedCurrent (from /api/all_users):', detectedCurrent);
             console.log('currentUserId:', currentUserId);
 
             // Fetch connections data
@@ -116,65 +126,104 @@ document.addEventListener("DOMContentLoaded", function () {
                 .then(connectionsData => {
                     console.log("API Response:", connectionsData);
 
-                    // Merge all users with the connections data
-                    const allUsernames = new Set(allUsers.map(user => user.username));
-                    const existingUsernames = new Set(connectionsData.nodes.map(node => node.username));
-                    const newUsers = allUsers.filter(user => !existingUsernames.has(user.username));
+                    // Do NOT add all registered users to the graph — only include nodes returned by
+                    // the `/api/connections` endpoint. We may need to ensure the current user node
+                    // exists so the view shows the user even if connections data omitted them.
+                    const hasCurrentNode = connectionsData.nodes.some(n => n.id === currentUserId || n.isCurrentUser);
+                    if (!hasCurrentNode) {
+                        const currentFromAll = allUsers.find(u => u.id === currentUserId || u.isCurrentUser || u.is_current_user || u.isCurrent);
+                        if (currentFromAll) {
+                            connectionsData.nodes.push({
+                                id: currentFromAll.id,
+                                username: currentFromAll.username,
+                                isCurrentUser: true,
+                                isFriend: false,
+                                hasPendingRequest: false
+                            });
+                        }
+                    }
 
-                    // Add new users to the nodes
-                    newUsers.forEach(user => {
-                        connectionsData.nodes.push({
-                            id: user.id,
-                            username: user.username,
-                            isCurrentUser: user.isCurrentUser || false,
-                            isFriend: false, // Initialize as false
-                            hasPendingRequest: false // Added for pending request
-                        });
+                    // Normalize IDs to strings to avoid number/string mismatches and handle
+                    // link endpoints that may be objects (e.g., {id: ...}).
+                    const currentUserIdStr = String(currentUserId);
+
+                    connectionsData.nodes.forEach(node => {
+                        node.id = String(node.id);
+                        // Ensure isCurrentUser is set if it matches the detected current user by id or username
+                        node.isCurrentUser = !!node.isCurrentUser || node.id === currentUserIdStr || (currentUserName && node.username === currentUserName);
+                        if (node.isFriend == undefined) node.isFriend = false;
+                        if (node.hasPendingRequest == undefined) node.hasPendingRequest = false;
                     });
 
-                    // Create a map to store nodes by their ID for quick lookup
-                    const nodesById = new Map(connectionsData.nodes.map(node => [node.id, node]));
-                    // DEBUG: Log all node IDs
-                    console.log('Node IDs:', Array.from(nodesById.keys()));
+                    // Normalize links so source/target are string ids
+                    connectionsData.links = connectionsData.links.map(link => {
+                        const rawSource = (typeof link.source === 'object' && link.source !== null) ? link.source.id : link.source;
+                        const rawTarget = (typeof link.target === 'object' && link.target !== null) ? link.target.id : link.target;
+                        return { source: String(rawSource), target: String(rawTarget) };
+                    });
 
-                    // Fetch pending friend requests
+                    // Create a map to store nodes by their ID for quick lookup and DEBUG
+                    let nodesById = new Map(connectionsData.nodes.map(node => [node.id, node]));
+                    console.log('Node IDs (normalized):', Array.from(nodesById.keys()));
+                    console.log('connectionsData.links (normalized):', connectionsData.links);
+                    console.log('nodes before marking friends:', connectionsData.nodes.map(n => ({ id: n.id, username: n.username, isFriend: n.isFriend, isCurrentUser: n.isCurrentUser })));
+
+                    // Mark nodes as friends when they are linked to the current user
+                    connectionsData.links.forEach(link => {
+                        try {
+                            if (link.source === currentUserIdStr) {
+                                const n = nodesById.get(link.target);
+                                if (n) n.isFriend = true;
+                            } else if (link.target === currentUserIdStr) {
+                                const n = nodesById.get(link.source);
+                                if (n) n.isFriend = true;
+                            }
+                        } catch (e) {
+                            // ignore malformed links
+                        }
+                    });
+
+                    // Filter the graph to only include the current user and their friends.
+                    // Keep only nodes where isCurrentUser or isFriend === true.
+                    const allowedNodeIds = new Set(connectionsData.nodes.filter(n => n.isCurrentUser || n.isFriend).map(n => n.id));
+
+                    console.log('allowedNodeIds BEFORE fallback:', Array.from(allowedNodeIds));
+
+                    // If there are no detected friends, we still want to include the current user so the view isn't empty.
+                    if (!allowedNodeIds.has(currentUserIdStr)) {
+                        const currentById = connectionsData.nodes.find(n => n.id === currentUserIdStr || n.isCurrentUser);
+                        if (currentById) allowedNodeIds.add(currentById.id);
+                    }
+
+                    // Apply filtering to nodes and links (links now use normalized string ids)
+                    connectionsData.nodes = connectionsData.nodes.filter(n => allowedNodeIds.has(n.id));
+                    connectionsData.links = connectionsData.links.filter(l => allowedNodeIds.has(l.source) && allowedNodeIds.has(l.target));
+
+                    // Rebuild nodesById to reflect the filtered nodes
+                    nodesById = new Map(connectionsData.nodes.map(node => [node.id, node]));
+
+                    // Fetch pending friend requests and only mark/draw those that are still present in the filtered graph
                     fetch("/api/pending_requests")
                         .then(response => response.json())
                         .then(data => {
-                            // DEBUG: Log pending requests
-                            console.log('Pending requests:', data.pending_requests);
-                            // Update nodes with pending requests
-                            data.pending_requests.forEach(request => {
-                                const node = nodesById.get(request.receiver_id);
+                            console.log('Pending requests (post-filter):', data.pending_requests);
+                            const pendingRequests = data.pending_requests || [];
+
+                            // Update nodes with pending requests if node exists in the filtered graph
+                            pendingRequests.forEach(request => {
+                                const receiverId = String(request.receiver_id);
+                                const node = nodesById.get(receiverId);
                                 if (node) {
                                     node.hasPendingRequest = true;
-                                    d3.select(`#node-${node.id}`)
-                                        .selectAll("circle")
-                                        .attr("stroke", "#FFD700")
-                                        .style("filter", "url(#friend-glow)");
                                 }
                             });
 
-                            // Draw yellow lines for outgoing pending requests
-                            // Try both number and username for source/target
-                            const pendingLinks = data.pending_requests
-                                .filter(request => request.sender_id === currentUserId || request.sender_id == currentUserId)
-                                .map(request => {
-                                    // Try to match both by ID and username
-                                    let source = currentUserId;
-                                    let target = request.receiver_id;
-                                    // If node IDs are usernames, use usernames
-                                    if (!nodesById.has(source) && nodesById.has(request.sender_username)) {
-                                        source = request.sender_username;
-                                    }
-                                    if (!nodesById.has(target) && nodesById.has(request.receiver_username)) {
-                                        target = request.receiver_username;
-                                    }
-                                    return { source, target };
-                                });
-                            console.log('Pending links to draw:', pendingLinks);
+                            // Draw pending links only for nodes in the filtered graph
+                            const pendingLinks = pendingRequests
+                                .filter(request => String(request.sender_id) === String(currentUserId))
+                                .map(request => ({ source: String(currentUserId), target: String(request.receiver_id) }))
+                                .filter(l => nodesById.has(l.source) && nodesById.has(l.target));
 
-                            // Add yellow lines for pending requests
                             const pendingLinkSelection = container.append("g")
                                 .attr("class", "pending-links")
                                 .selectAll("line")
@@ -185,34 +234,9 @@ document.addEventListener("DOMContentLoaded", function () {
                                 .attr("stroke-width", 4)
                                 .attr("stroke-dasharray", "8,4");
 
-                            // Update their positions on tick
-                            simulation.on("tick", () => {
-                                link
-                                    .attr("x1", d => d.source.x)
-                                    .attr("y1", d => d.source.y)
-                                    .attr("x2", d => d.target.x)
-                                    .attr("y2", d => d.target.y);
-
-                                nodeGroup.attr("transform", d => `translate(${d.x},${d.y})`);
-
-                                // Update the positions of the pending links
-                                container.selectAll(".pending-link")
-                                    .attr("x1", d => nodesById.get(d.source).x)
-                                    .attr("y1", d => nodesById.get(d.source).y)
-                                    .attr("x2", d => nodesById.get(d.target).x)
-                                    .attr("y2", d => nodesById.get(d.target).y);
-                            });
+                            // Positions will be updated by the main simulation tick handler
                         })
                         .catch(error => console.error("Error fetching pending requests:", error));
-
-                    // Ensure all nodes have the isFriend property set
-                    connectionsData.links.forEach(link => {
-                        if (link.source === currentUserId) {
-                            nodesById.get(link.target).isFriend = true;
-                        } else if (link.target === currentUserId) {
-                            nodesById.get(link.source).isFriend = true;
-                        }
-                    });
 
                     // Find the node with the most connections
                     const nodeConnections = new Map();
@@ -239,9 +263,11 @@ document.addEventListener("DOMContentLoaded", function () {
                         .force("collision", d3.forceCollide().radius(d => getNodeRadius(d) * 1.5).strength(0.5));
 
                     function getNodeRadius(d) {
-                        if (d.isFriend == undefined){
-                            d.isFriend = true;
-                        }
+                                        // Default to false for isFriend if not set. The graph is already
+                                        // filtered to only include friends and the current user.
+                                        if (d.isFriend == undefined){
+                                            d.isFriend = false;
+                                        }
                         return Math.max(25, d.username.length * 6);
                     }
 
@@ -570,6 +596,35 @@ document.addEventListener("DOMContentLoaded", function () {
                         .attr("text-anchor", "middle")
                         .attr("alignment-baseline", "middle")
                         .style("pointer-events", "none");
+
+                    // Single unified tick handler to update positions of links, nodes and pending links
+                    simulation.on("tick", () => {
+                        link
+                            .attr("x1", d => d.source.x)
+                            .attr("y1", d => d.source.y)
+                            .attr("x2", d => d.target.x)
+                            .attr("y2", d => d.target.y);
+
+                        nodeGroup.attr("transform", d => `translate(${d.x},${d.y})`);
+
+                        container.selectAll(".pending-link")
+                            .attr("x1", d => {
+                                const n = nodesById.get(d.source);
+                                return n ? n.x : 0;
+                            })
+                            .attr("y1", d => {
+                                const n = nodesById.get(d.source);
+                                return n ? n.y : 0;
+                            })
+                            .attr("x2", d => {
+                                const n = nodesById.get(d.target);
+                                return n ? n.x : 0;
+                            })
+                            .attr("y2", d => {
+                                const n = nodesById.get(d.target);
+                                return n ? n.y : 0;
+                            });
+                    });
 
                     function drag(simulation) {
                         return d3.drag()
