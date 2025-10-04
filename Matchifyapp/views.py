@@ -777,6 +777,8 @@ def profile(request, username):
         'friend_request_sent': friend_request_sent,
         'friend_request_received': friend_request_received,
         'compatibility_score': compatibility_score,
+        'profile_exists': profile_exists,
+        'profile_bio': profile_bio,
     }
 
     # If a flash message exists for edit success, include it
@@ -791,7 +793,8 @@ def profile(request, username):
 def edit_bio(request):
     if request.method != 'POST':
         return redirect('home')
-
+    # Debugging: log that we received a POST for editing bio
+    logger.info(f"edit_bio called by user={getattr(request.user, 'username', None)} method={request.method}")
     form = EditProfileForm(request.POST)
     if not form.is_valid():
         messages.error(request, "Invalid input.")
@@ -822,6 +825,7 @@ def edit_bio(request):
             # Create one if missing. Guard create with DatabaseError too.
             try:
                 profile = Profile.objects.create(user=request.user, bio=bio)
+                logger.info(f"edit_bio: created profile for {request.user.username}")
                 # stash the bio in session so the UI shows it immediately
                 try:
                     request.session['tmp_profile_bio'] = bio
@@ -837,6 +841,7 @@ def edit_bio(request):
             try:
                 profile.bio = bio
                 profile.save()
+                logger.info(f"edit_bio: updated profile.bio for {request.user.username}")
                 # stash the bio in session so the UI shows it immediately
                 try:
                     request.session['tmp_profile_bio'] = bio
@@ -891,31 +896,31 @@ def calculate_compatibility(user1, user2):
         # Get top artists for both users
         user1_artists = get_top_artists(user1, 'long_term')
         user2_artists = get_top_artists(user2, 'long_term')
-        
+
+        # If the helper returned an error dict, bail out
         if isinstance(user1_artists, dict) or isinstance(user2_artists, dict):
             return None
-            
-        # Get artist IDs for comparison
-        user1_artist_ids = set(artist['id'] for artist in user1_artists)
-        user2_artist_ids = set(artist['id'] for artist in user2_artists)
-        
+
+        # Extract artist IDs
+        user1_artist_ids = set(artist.get('id') for artist in user1_artists if 'id' in artist)
+        user2_artist_ids = set(artist.get('id') for artist in user2_artists if 'id' in artist)
+
         # Calculate common artists
         common_artists = user1_artist_ids.intersection(user2_artist_ids)
-        
-        # Calculate genres
-        user1_genres = set(genre for artist in user1_artists for genre in artist['genres'])
-        user2_genres = set(genre for artist in user2_artists for genre in artist['genres'])
+
+        # Calculate genre overlap
+        user1_genres = set(genre for artist in user1_artists for genre in artist.get('genres', []))
+        user2_genres = set(genre for artist in user2_artists for genre in artist.get('genres', []))
         common_genres = user1_genres.intersection(user2_genres)
-        
-        # Calculate score (50% based on artists, 50% based on genres)
-        artist_score = len(common_artists) / max(len(user1_artist_ids), 1) * 50
-        genre_score = len(common_genres) / max(len(user1_genres), 1) * 50
-        
+
+        # Score components (each weighted to 50)
+        artist_score = (len(common_artists) / max(len(user1_artist_ids), 1)) * 50
+        genre_score = (len(common_genres) / max(len(user1_genres), 1)) * 50
+
         total_score = round(artist_score + genre_score)
-        return min(total_score, 100)  # Cap at 100%
-        
-    except Exception as e:
-        print(f"Error calculating compatibility: {e}")
+        return min(total_score, 100)
+    except Exception:
+        # If anything goes wrong while calculating compatibility, return None
         return None
 @login_required
 def get_connections(request):
