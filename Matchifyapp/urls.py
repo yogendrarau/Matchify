@@ -23,6 +23,7 @@ urlpatterns = [
     path("get-current-track", views.get_current_track_endpoint, name="get_current_track"),
     path("api/connections", views.get_connections, name="get_connections"),
     path("profile/<str:username>/", views.profile, name="profile"),
+    path("discussion/", views.discussion, name="discussion"),
     path("api/all_users", views.get_all_users, name="all_users"),
     path('password_reset/', auth_views.PasswordResetView.as_view(template_name='password_reset.html'), name='password_reset'),
     path('password_reset/done/', auth_views.PasswordResetDoneView.as_view(template_name='password_reset_done.html'), name='password_reset_done'),

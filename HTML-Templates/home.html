@@ -91,6 +91,13 @@
                         Authenticate with Spotify
                     </button>
                 </form>
+                
+                <!-- Discussions Button -->
+                <form action="{% url 'discussion' %}" method="get">
+                    <button type="submit" class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-4 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 w-full">
+                        Discussions
+                    </button>
+                </form>
             </div>
         {% else %}
             <div class="max-w-2xl mx-auto space-y-6">

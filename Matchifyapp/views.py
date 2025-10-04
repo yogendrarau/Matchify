@@ -688,6 +688,26 @@ def get_current_track_endpoint(request):
         'timestamp': timezone.now().isoformat()
     })
 
+
+@login_required
+def discussion(request):
+    """Simple discussion board: list posts and allow logged-in users to create posts."""
+    from .forms import PostForm
+    from .models import Post
+
+    if request.method == 'POST':
+        form = PostForm(request.POST)
+        if form.is_valid():
+            post = form.save(commit=False)
+            post.author = request.user
+            post.save()
+            return redirect('discussion')
+    else:
+        form = PostForm()
+
+    posts = Post.objects.select_related('author').all()
+    return render(request, 'discussion.html', {'form': form, 'posts': posts})
+
 def calculate_compatibility(user1, user2):
     try:
         # Get top artists for both users

@@ -17,3 +17,15 @@ class RegisterForm(forms.ModelForm):
     class Meta:
         model = get_user_model()
         fields = ['username', 'email', 'password', 'passwordrepeat']
+
+
+from .models import Post
+
+
+class PostForm(forms.ModelForm):
+    class Meta:
+        model = Post
+        fields = ['content']
+        widgets = {
+            'content': forms.Textarea(attrs={'rows':4, 'placeholder':'Share something with the community...'})
+        }
