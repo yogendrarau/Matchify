@@ -45,3 +45,16 @@ class Friendship(models.Model):
     
     class Meta:
         unique_together = ('user1', 'user2')
+
+
+class Post(models.Model):
+    """Simple discussion post model."""
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='posts')
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Post by {self.author} at {self.created_at}"

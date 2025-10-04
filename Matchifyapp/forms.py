@@ -21,3 +21,15 @@ class RegisterForm(forms.ModelForm):
 
 class EditProfileForm(forms.Form):
     bio = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows':3, 'placeholder':'Tell others about yourself'}), max_length=2000)
+
+
+from .models import Post
+
+
+class PostForm(forms.ModelForm):
+    class Meta:
+        model = Post
+        fields = ['content']
+        widgets = {
+            'content': forms.Textarea(attrs={'rows':4, 'placeholder':'Share something with the community...'})
+        }
