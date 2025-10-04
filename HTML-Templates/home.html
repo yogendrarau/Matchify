@@ -24,7 +24,13 @@
                     <a id="open-profile-link" href="{% url 'profile' user.username %}" class="w-full block text-left px-4 py-2 hover:bg-gray-700 text-white">
                         My Profile
                     </a>
-                    <!-- View Statistics removed -->
+                    <!-- View Top Artists -->
+                    <form action="{% url 'top_artists' %}" method="get">
+                        <button type="submit" 
+                                class="w-full text-left px-4 py-2 hover:bg-gray-700 text-white">
+                            View Statistics
+                        </button>
+                    </form>
                     
                     <!-- Logout -->
                     <form action="logout" method="post" class="border-t border-gray-700">
@@ -87,6 +93,13 @@
                 <form action="{% url 'auth-url' %}" method="get">
                     <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-4 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 w-full">
                         Authenticate with Spotify
+                    </button>
+                </form>
+                
+                <!-- Discussions Button -->
+                <form action="{% url 'discussion' %}" method="get">
+                    <button type="submit" class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-4 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 w-full">
+                        Discussions
                     </button>
                 </form>
             </div>

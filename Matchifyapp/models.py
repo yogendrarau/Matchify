@@ -45,14 +45,3 @@ class Friendship(models.Model):
     
     class Meta:
         unique_together = ('user1', 'user2')
-
-
-# Create a Profile automatically when a new User is created
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-
-
-@receiver(post_save, sender=User)
-def create_user_profile(sender, instance, created, **kwargs):
-    if created:
-        Profile.objects.create(user=instance)
