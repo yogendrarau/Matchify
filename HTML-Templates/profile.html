@@ -4,10 +4,10 @@
 
 {% block content %}
 <div class="bg-black min-h-screen flex flex-col items-center justify-center py-12">
-    <!-- Return to Map Button -->
-    <a href="{% url 'mapify' %}" 
+    <!-- Return to Home Button -->
+    <a href="{% url 'home' %}" 
        class="absolute top-5 left-5 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-md transition-transform transform hover:scale-105">
-        ← Return to Map
+        ← Return to Home
     </a>
 
     {% if user_data.is_friend or user_data.is_current_user %}
@@ -66,14 +66,29 @@
         <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="bg-gray-900 p-4 rounded">
                 <h3 class="text-lg font-medium mb-2 text-white">About</h3>
-                {% if user_data.user.profile %}
-                    {% if user_data.user.profile.bio %}
-                        <p class="text-gray-300">{{ user_data.user.profile.bio }}</p>
+                <!-- Display bio (use profile_bio if available) -->
+                <div id="bio-display">
+                    {% if user_data.profile_exists and user_data.profile_bio %}
+                        <p class="text-gray-300" id="bio-text">{{ user_data.profile_bio }}</p>
                     {% else %}
-                        <p class="text-gray-300">You haven't added a bio yet. Edit your profile to add one.</p>
+                        <p class="text-gray-300" id="bio-text">You haven't added a bio yet. Edit your profile to add one.</p>
                     {% endif %}
-                {% else %}
-                    <p class="text-gray-300">You haven't added a bio yet. Edit your profile to add one.</p>
+                </div>
+
+                {% if user_data.is_current_user %}
+                    <div id="bio-edit" class="mt-3 hidden">
+                        <form action="{% url 'edit_bio' %}" method="post">
+                            {% csrf_token %}
+                            <textarea name="bio" rows="4" class="w-full p-2 rounded bg-gray-800 text-gray-200" placeholder="Tell people about yourself...">{{ user_data.profile_bio|default:'' }}</textarea>
+                            <div class="mt-2 flex gap-2">
+                                <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition transform hover:scale-105">Save</button>
+                                <button type="button" id="cancel-bio" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded transition" onclick="toggleBioEdit(false)">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="mt-2">
+                        <button id="edit-bio-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded transition transform hover:scale-105" onclick="toggleBioEdit(true)">Edit</button>
+                    </div>
                 {% endif %}
 
                 <h4 class="mt-6 text-lg font-medium text-white">Top Artists Recently</h4>
@@ -103,9 +118,9 @@
             <aside class="bg-gray-900 p-4 rounded self-start h-auto">
                 <h3 class="text-lg font-medium mb-2 text-white">Top Songs</h3>
                 <div class="flex gap-2 mb-3">
-                    <a href="?tracks_range=short_term" class="tracks-range-btn px-3 py-1 bg-gray-700 rounded text-sm transition transform hover:scale-105 hover:brightness-110 shadow-sm" data-range="short_term">4 Weeks</a>
-                    <a href="?tracks_range=medium_term" class="tracks-range-btn px-3 py-1 bg-gray-700 rounded text-sm transition transform hover:scale-105 hover:brightness-110 shadow-sm" data-range="medium_term">6 Months</a>
-                    <a href="?tracks_range=long_term" class="tracks-range-btn px-3 py-1 bg-gray-700 rounded text-sm transition transform hover:scale-105 hover:brightness-110 shadow-sm" data-range="long_term">All Time</a>
+                    <a href="?tracks_range=short_term" class="tracks-range-btn px-3 py-1 bg-green-600 rounded text-sm transition transform hover:scale-105 hover:bg-green-700 hover:brightness-110 shadow-sm" data-range="short_term">4 Weeks</a>
+                    <a href="?tracks_range=medium_term" class="tracks-range-btn px-3 py-1 bg-green-600 rounded text-sm transition transform hover:scale-105 hover:bg-green-700 hover:brightness-110 shadow-sm" data-range="medium_term">6 Months</a>
+                    <a href="?tracks_range=long_term" class="tracks-range-btn px-3 py-1 bg-green-600 rounded text-sm transition transform hover:scale-105 hover:bg-green-700 hover:brightness-110 shadow-sm" data-range="long_term">All Time</a>
                 </div>
 
                 <div id="tracks-container" class="max-h-96 overflow-auto pr-2">
@@ -147,16 +162,13 @@
             </aside>
         </div>
 
-        <div class="mt-6 flex space-x-3">
-            <a href="{% url 'top_artists' %}" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition transform hover:scale-105 hover:brightness-110 shadow-sm">View Top Artists</a>
-            <a href="{% url 'mapify' %}" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded transition transform hover:scale-105 hover:brightness-110 shadow-sm">View Network</a>
-        </div>
+        <!-- Bottom action buttons removed as requested -->
     </div>
     {% else %}
     <div class="max-w-md p-6 rounded-lg shadow-lg bg-red-500 text-white">
         <h2 class="text-2xl font-semibold mb-2">Access Denied</h2>
         <p>You can only view the profile of a friend.</p>
-        <a href="{% url 'mapify' %}" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full mt-4">Return to Map</a>
+        <a href="{% url 'home' %}" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full mt-4">Return to Home</a>
     </div>
     {% endif %}
 </div>
@@ -177,6 +189,37 @@ document.addEventListener('DOMContentLoaded', function () {
         viewAll.addEventListener('click', function () {
             if (spinner) spinner.classList.remove('hidden');
         });
+    }
+});
+</script>
+<script>
+function toggleBioEdit(show) {
+    const edit = document.getElementById('bio-edit');
+    const btn = document.getElementById('edit-bio-btn');
+    const display = document.getElementById('bio-display');
+    if (!edit || !btn || !display) return;
+    console.log('toggleBioEdit called, show=', show);
+    if (show) {
+        edit.classList.remove('hidden');
+        btn.classList.add('hidden');
+        // focus the textarea
+        const ta = edit.querySelector('textarea');
+        if (ta) ta.focus();
+    } else {
+        edit.classList.add('hidden');
+        btn.classList.remove('hidden');
+    }
+}
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    try {
+        const editBtn = document.getElementById('edit-bio-btn');
+        const cancelBtn = document.getElementById('cancel-bio');
+        if (editBtn) editBtn.addEventListener('click', function(e){ e.preventDefault(); toggleBioEdit(true); });
+        if (cancelBtn) cancelBtn.addEventListener('click', function(e){ e.preventDefault(); toggleBioEdit(false); });
+    } catch (err) {
+        console.error('Error wiring bio edit buttons', err);
     }
 });
 </script>

@@ -17,3 +17,7 @@ class RegisterForm(forms.ModelForm):
     class Meta:
         model = get_user_model()
         fields = ['username', 'email', 'password', 'passwordrepeat']
+
+
+class EditProfileForm(forms.Form):
+    bio = forms.CharField(widget=forms.Textarea(attrs={'rows':4, 'class':'w-full p-2 rounded bg-gray-800 text-gray-200'}), required=False, label='About')
