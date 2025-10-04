@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with {{ friend.username }} - Matchify</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black text-white min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-gray-800 p-4 fixed w-full top-0 z-10">
+        <div class="max-w-4xl mx-auto flex justify-between items-center">
+            <a href="{% url 'profile' %}" class="text-blue-500 hover:text-blue-400">
+                ← Back to Profile
+            </a>
+            <h1 class="text-xl font-semibold">Chat with {{ friend.username }}</h1>
+            <div class="w-20"></div>
+        </div>
+    </header>
+
+    <!-- Chat Messages -->
+    <div class="flex-1 overflow-y-auto pt-20 pb-24" id="chat-messages">
+        <div class="max-w-4xl mx-auto p-4">
+            {% for message in chat_messages %}
+                <div class="mb-4 flex {% if message.sender == request.user %}justify-end{% endif %}">
+                    <div class="{% if message.sender == request.user %}bg-blue-600{% else %}bg-gray-700{% endif %} rounded-lg px-4 py-2 max-w-[70%]">
+                        <p class="text-sm">{{ message.content }}</p>
+                        <p class="text-xs text-gray-400 mt-1">{{ message.created_at|date:"g:i A" }}</p>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Message Input -->
+    <div class="fixed bottom-0 w-full bg-gray-800 p-4">
+        <form id="message-form" class="max-w-4xl mx-auto flex gap-2">
+            {% csrf_token %}
+            <input type="text" 
+                   id="message-input"
+                   class="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                   placeholder="Type your message...">
+            <button type="submit"
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors">
+                Send
+            </button>
+        </form>
+    </div>
+
+    <script>
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        const messagesContainer = document.getElementById('chat-messages');
+        let lastMessageTime = '{{ chat_messages.last.created_at|date:"Y-m-d H:i:s" }}';
+
+        // Scroll to bottom initially
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        messageForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const content = messageInput.value.trim();
+            if (!content) return;
+
+            try {
+                const response = await fetch('{% url "send_message" friend.username %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: new FormData(messageForm)
+                });
+
+                if (response.ok) {
+                    messageInput.value = '';
+                    await fetchNewMessages();
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+            }
+        });
+
+        async function fetchNewMessages() {
+            try {
+                const response = await fetch(`{% url "get_messages" friend.username %}?after=${lastMessageTime}`);
+                const data = await response.json();
+
+                data.messages.forEach(message => {
+                    const messageElement = document.createElement('div');
+                    messageElement.className = `mb-4 flex ${message.sender === '{{ request.user.username }}' ? 'justify-end' : ''}`;
+                    messageElement.innerHTML = `
+                        <div class="${message.sender === '{{ request.user.username }}' ? 'bg-blue-600' : 'bg-gray-700'} rounded-lg px-4 py-2 max-w-[70%]">
+                            <p class="text-sm">${message.content}</p>
+                            <p class="text-xs text-gray-400 mt-1">${new Date(message.created_at).toLocaleTimeString()}</p>
+                        </div>
+                    `;
+                    messagesContainer.appendChild(messageElement);
+                });
+
+                if (data.messages.length > 0) {
+                    lastMessageTime = data.messages[data.messages.length - 1].created_at;
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                }
+            } catch (error) {
+                console.error('Error fetching messages:', error);
+            }
+        }
+
+        // Poll for new messages every 3 seconds
+        setInterval(fetchNewMessages, 3000);
+    </script>
+</body>
+</html> 

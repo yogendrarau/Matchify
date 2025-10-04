@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matchify</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black text-white min-h-screen">
+    {% if user.is_authenticated %}
+        <!-- Menu Button and Dropdown (Top Right) -->
+        <div class="absolute top-4 right-4">
+            <div class="relative">
+                <!-- Circle Menu Button -->
+                <button onclick="toggleDropdown()" 
+                        class="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 focus:outline-none">
+                    <span class="text-xl">☰</span>
+                </button>
+
+                <!-- Dropdown Menu -->
+                <div id="dropdownMenu" 
+                     class="hidden absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg py-2 z-50">
+                    <!-- View Top Artists -->
+                    <form action="{% url 'top_artists' %}" method="get">
+                        <button type="submit" 
+                                class="w-full text-left px-4 py-2 hover:bg-gray-700 text-white">
+                            View Statistics
+                        </button>
+                    </form>
+                    
+                    <!-- Logout -->
+                    <form action="logout" method="post" class="border-t border-gray-700">
+                        {% csrf_token %}
+                        <button type="submit" 
+                                class="w-full text-left px-4 py-2 hover:bg-gray-700 text-white">
+                            Logout
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Header -->
+    <header class="w-full py-8 text-center">
+        <h1 class="text-6xl font-bold text-green-500 mb-2">Matchify</h1>
+        <p class="text-gray-400 text-lg">Connect through music</p>
+    </header>
+
+    <!-- Add this after the header section and before the main content -->
+    {% if user.is_authenticated and user.spotify_tokens.exists %}
+        <div class="max-w-md mx-auto mt-8 p-6 bg-gray-800 rounded-lg shadow-lg">
+            <h3 class="text-xl font-semibold mb-4 text-green-400">Currently Listening</h3>
+            <div data-current-track-container>
+                {% if current_track %}
+                    <div class="flex items-center space-x-4">
+                        {% if current_track.album_art %}
+                            <img src="{{ current_track.album_art }}" 
+                                 alt="Album Art" 
+                                 class="w-16 h-16 rounded-lg shadow-md">
+                        {% endif %}
+                        <div>
+                            <p class="text-lg font-semibold text-white">{{ current_track.name }}</p>
+                            <p class="text-sm text-gray-400">{{ current_track.artist }}</p>
+                            <p class="text-xs text-gray-500">{{ current_track.album }}</p>
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="text-gray-400 text-center">Currently not playing music</p>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 mt-12">
+        {% if user.is_authenticated %}
+            <div class="max-w-2xl mx-auto space-y-6">
+                <h2 class="text-3xl font-semibold text-center mb-8">Welcome, {{ user.username }}!</h2>
+
+                <!-- Network Button -->
+                <form action="{% url 'mapify' %}" method="get">
+                    <button type="submit" class="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-4 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 w-full">
+                        View Network
+                    </button>
+                </form>
+
+                <!-- Authenticate with Spotify Button -->
+                <form action="{% url 'auth-url' %}" method="get">
+                    <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-4 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 w-full">
+                        Authenticate with Spotify
+                    </button>
+                </form>
+            </div>
+        {% else %}
+            <div class="max-w-2xl mx-auto space-y-6">
+                <h2 class="text-3xl font-semibold text-center mb-8">Welcome to Matchify!</h2>
+                <p class="text-gray-300 text-center text-lg mb-8">Please log in or register to continue.</p>
+                
+                <!-- Login and Register Buttons -->
+                <div class="space-y-4">
+                    <form action="login">
+                        <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-4 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 w-full">
+                            Login
+                        </button>
+                    </form>
+                    <form action="register">
+                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-4 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 w-full">
+                            Register
+                        </button>
+                    </form>
+                </div>
+            </div>
+        {% endif %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="fixed bottom-0 w-full py-6 text-center bg-black bg-opacity-50">
+        <p class="text-gray-500 italic text-sm">Powered by Spotify</p>
+    </footer>
+
+    <!-- JavaScript for dropdown -->
+    <script>
+        const menuButton = document.querySelector('[onclick="toggleDropdown()"]');
+        const dropdownMenu = document.getElementById('dropdownMenu');
+
+        function toggleDropdown(event) {
+            event.stopPropagation();  // Prevent event from bubbling up
+            dropdownMenu.classList.toggle('hidden');
+        }
+
+        // Add click event listener to the button
+        menuButton.addEventListener('click', toggleDropdown);
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            if (!menuButton.contains(event.target) && !dropdownMenu.contains(event.target)) {
+                dropdownMenu.classList.add('hidden');
+            }
+        });
+
+        // Auto-refresh current track
+        function createTrackHTML(track) {
+            let html = '<div class="flex items-center space-x-4">';
+            
+            if (track.album_art) {
+                html += '<img src="' + track.album_art + '" alt="Album Art" class="w-16 h-16 rounded-lg shadow-md">';
+            }
+            
+            html += '<div>' +
+                '<p class="text-lg font-semibold text-white">' + track.name + '</p>' +
+                '<p class="text-sm text-gray-400">' + track.artist + '</p>' +
+                '<p class="text-xs text-gray-500">' + track.album + '</p>' +
+                '</div></div>';
+            
+            return html;
+        }
+
+        function refreshCurrentTrack() {
+            console.log('Refreshing current track...');
+            fetch('/get-current-track')
+                .then(response => {
+                    console.log('Response received:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Data received:', data);
+                    const container = document.querySelector('[data-current-track-container]');
+                    if (container) {
+                        if (data.track) {
+                            console.log('Updating container with track:', data.track);
+                            container.innerHTML = createTrackHTML(data.track);
+                        } else {
+                            console.log('No track data, showing not playing message');
+                            container.innerHTML = '<p class="text-gray-400 text-center">Currently not playing music</p>';
+                        }
+                    } else {
+                        console.log('Container not found');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error refreshing track:', error);
+                });
+        }
+
+        {% if user.is_authenticated and user.spotify_tokens.exists %}
+            // Initial refresh
+            refreshCurrentTrack();
+            // Set up periodic refresh
+            setInterval(refreshCurrentTrack, 5000);
+        {% endif %}
+    </script>
+</body>
+</html>

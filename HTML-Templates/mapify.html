@@ -1,0 +1,176 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connections - Matchify</title>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="{% static 'js/connections.js' %}"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* Ensure everything fits within the viewport */
+        body, html {
+            height: 100%;
+            margin: 0;
+            overflow: hidden; /* Prevent scrolling */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            background-color: black;
+        }
+
+        /* Small header */
+        .header {
+            background-color: #2d3748;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Search container */
+        .search-container {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Magnifying glass icon */
+        .search-icon {
+            cursor: pointer;
+            font-size: 22px;
+            background-color: #2d3748;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s ease-in-out;
+        }
+
+        .search-icon:hover {
+            transform: scale(1.1);
+        }
+
+        /* Search bar (initially hidden, slides out from the icon) */
+        .search-bar {
+            width: 0;
+            padding: 10px;
+            background-color: #1a202c;
+            border: 2px solid #4299e1;
+            border-radius: 8px;
+            color: white;
+            outline: none;
+            transition: width 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            opacity: 0;
+            position: absolute;
+            right: 50px; /* Initially hidden */
+        }
+
+        .search-bar.active {
+            width: 250px; /* Search bar expands */
+            opacity: 1;
+            padding: 10px;
+        }
+
+        /* Go button (initially hidden, slides out with search bar) */
+        .go-button {
+            position: absolute;
+            right: 310px; /* Initially hidden behind icon */
+            padding: 10px 16px;
+            background-color: #4299e1;
+            color: white;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: width 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            opacity: 0;
+            width: 0;
+        }
+
+        .go-button.active {
+            width: 60px; /* Button expands */
+            opacity: 1;
+        }
+
+        /* Error message */
+        .search-error {
+            position: absolute;
+            top: 50px; /* Position it below the search bar */
+            right: 50px;
+            color: red;
+            display: none; /* Hidden initially */
+        }
+
+        /* Ensure the graph container takes up available space */
+        #connections {
+            flex-grow: 1;
+            width: 100%;
+            height: calc(100vh - 100px); /* Adjust height so the button is visible */
+        }
+
+        /* Fix button at the bottom */
+        .home-button {
+            position: absolute;
+            bottom: 20px;
+            background-color: #4299e1;
+            color: white;
+            font-weight: bold;
+            padding: 12px 24px;
+            border-radius: 9999px;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+            text-decoration: none;
+            transition: transform 0.2s ease-in-out;
+        }
+
+        .home-button:hover {
+            background-color: #3182ce;
+            transform: scale(1.05);
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Small header box -->
+    <div class="header">
+        <h1 class="text-2xl font-bold text-green-500">Mapify</h1>
+    </div>
+
+    <!-- Search container -->
+    <div class="search-container">
+        <!-- Magnifying Glass Icon -->
+        <span class="search-icon" onclick="toggleSearchBar()">🔍</span>
+
+        <!-- Go Button (Hidden initially) -->
+        <button id="goButton" class="go-button" onclick="executeSearch()">Go</button>
+
+        <!-- Search Bar (Hidden initially) -->
+        <input type="text" id="searchBar" class="search-bar" placeholder="Search users..." oninput="clearError()">
+
+        <!-- Error message (Hidden initially) -->
+        <p id="searchError" class="search-error"></p>
+    </div>
+
+    <!-- Graph container -->
+    <div id="connections"></div>
+
+    <!-- Fixed "Go Home" button at the bottom -->
+    <a href="/" class="home-button">
+        ← Back to Home
+    </a>
+
+</body>
+</html>

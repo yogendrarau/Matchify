@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Top Artists - Matchify</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .message-popup {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #f87171; /* Red color */
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            animation: slideIn 0.5s ease-out;
+            gap: 10px; /* Add space between message and close button */
+        }
+        .message-popup button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 0; /* Remove default padding */
+            margin: 0; /* Remove default margin */
+        }
+
+        @keyframes slideIn {
+            from {
+                top: -50px;
+                opacity: 0;
+            }
+            to {
+                top: 20px;
+                opacity: 1;
+            }
+        }
+        .go-back-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            background-color: #007bff; /* Blue background */
+            color: white; /* White text */
+            border: none;
+            border-radius: 25px; /* Rounded corners */
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 16px;
+            display: inline-flex;
+            align-items: center;
+            transition: background-color 0.3s ease;
+        }
+
+        /* Hover effect */
+        .go-back-button:hover {
+            background-color: #0056b3; /* Darker blue on hover */
+        }
+
+        /* Arrow styling */
+        .go-back-button::before {
+            content: "←"; /* Left-pointing arrow */
+            margin-right: 8px; /* Space between arrow and text */
+            font-size: 18px;
+        }
+  
+    </style>
+</head>
+<body class="bg-black text-white min-h-screen flex items-center justify-center">
+    <a href="/" class="go-back-button">Go Back</a>
+    <div class="text-center max-w-md p-6 bg-gray-800 rounded-lg shadow-lg">
+        <!-- Header -->
+        <h1 class="text-4xl font-bold text-green-500 mb-4">Top Artists</h1>
+        <p class="text-gray-300 text-lg mb-6">Choose a time range to view your top artists:</p>
+
+        <!-- Time Range Buttons -->
+        <div class="flex flex-col gap-4">
+            <form action="{% url 'top_artists' %}" method="get">
+                <input type="hidden" name="time_range" value="short_term">
+                <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-6 rounded-full shadow-md transition-transform transform hover:scale-105 w-full">
+                    Past 4 Weeks
+                </button>
+            </form>
+            <form action="{% url 'top_artists' %}" method="get">
+                <input type="hidden" name="time_range" value="medium_term">
+                <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-full shadow-md transition-transform transform hover:scale-105 w-full">
+                    Past 6 Months
+                </button>
+            </form>
+            <form action="{% url 'top_artists' %}" method="get">
+                <input type="hidden" name="time_range" value="long_term">
+                <button type="submit" class="bg-purple-500 hover:bg-purple-600 text-white font-semibold py-3 px-6 rounded-full shadow-md transition-transform transform hover:scale-105 w-full">
+                    All Time
+                </button>
+            </form>
+        </div>
+
+        {% if error %}
+            <p class="text-red-500 mb-6">{{ error }}</p>
+        {% else %}
+            <p class="text-gray-300 text-lg mb-6">Your top artists ({{ time_range }}):</p>
+            <div class="text-left">
+                {% for artist in top_artists %}
+                    <div class="mb-4">
+                        <p class="text-white font-semibold">{{ forloop.counter }}. {{ artist.name }}</p>
+                        <p class="text-gray-400">{{ artist.genres|join:", " }}</p>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <!-- Footer -->
+        <footer class="mt-8">
+            <p class="text-gray-500 italic text-sm">Powered by Spotify</p>
+        </footer>
+    </div>
+</body>
+</html>

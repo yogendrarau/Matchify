@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Profile{% endblock %}
+
+{% block content %}
+<div class="bg-black min-h-screen flex flex-col items-center justify-center">
+    <!-- Return to Map Button -->
+    <a href="{% url 'mapify' %}" 
+       class="absolute top-5 left-5 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-md transition-transform transform hover:scale-105">
+        ← Return to Map
+    </a>
+
+    {% if user_data.is_friend or user_data.is_current_user %}
+    <div class="max-w-md p-6 rounded-lg shadow-lg" style="background-color: {% if user_data.is_current_user %} #1a8c47 {% else %} #2d3748 {% endif %};">
+        <!-- User Info -->
+        <div class="mb-6">
+            <h2 class="text-2xl font-semibold mb-2 text-white">
+                {{ user_data.user.username }} {% if user_data.is_current_user %}(You){% endif %}
+            </h2>
+            <p class="text-white-400">Member since: {{ user_data.user.date_joined|date:"F j, Y" }}</p>
+        </div>
+
+        <!-- Compatibility Score -->
+        {% if user_data.compatibility_score is not None %}
+            {% if not user_data.is_current_user %}
+            <div class="mb-4">
+                <span class="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full 
+                    {% if user_data.compatibility_score >= 80 %}bg-green-200 text-green-800
+                    {% elif user_data.compatibility_score >= 60 %}bg-blue-200 text-blue-800
+                    {% elif user_data.compatibility_score >= 40 %}bg-yellow-200 text-yellow-800
+                    {% else %}bg-red-200 text-red-800{% endif %}">Music Match: {{ user_data.compatibility_score }}%</span>
+            </div>
+            {% endif %}
+        {% endif %}
+
+        <!-- Friend Actions -->
+        {% if not user_data.is_current_user %}
+            <div class="mb-4">
+                {% if user_data.is_friend %}
+                    <form action="{% url 'remove_friend' user_data.user.username %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full">Remove Friend</button>
+                    </form>
+                {% elif user_data.friend_request_sent %}
+                    <p class="text-yellow-500">Friend Request Sent</p>
+                {% elif user_data.friend_request_received %}
+                    <form action="{% url 'accept_friend_request' user_data.user.username %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-full">Accept</button>
+                    </form>
+                    <form action="{% url 'reject_friend_request' user_data.user.username %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full">Reject</button>
+                    </form>
+                {% else %}
+                    <form action="{% url 'send_friend_request' user_data.user.username %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full">Add Friend</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        <!-- Spotify Info -->
+        <div class="mb-6">
+            <h3 class="text-lg font-semibold text-green-400">Spotify Connection</h3>
+            {% if user_data.spotify_connected %}
+                {% if user_data.is_current_user %}
+                    <p class="text-white-500">✓ Connected to Spotify</p>
+                {% else %}
+                <p class="text-green-500">✓ Connected to Spotify</p>
+                {% endif %}
+                {% if user_data.top_artists %}
+                    <h4 class="text-md font-semibold mt-4">Top Artists</h4>
+                    {% for artist in user_data.top_artists|slice:":3" %}
+                        <p class="text-white">{{ forloop.counter }}. {{ artist.name }}</p>
+                    {% endfor %}
+                    {% if user_data.is_current_user %}
+                        <a href="{% url 'top_artists' %}" class="text-white-500 text-sm">View all →</a>
+                    {% endif %}
+                {% endif %}
+            {% else %}
+                <p class="text-red-500">✗ Not connected to Spotify</p>
+                {% if user_data.is_current_user %}
+                    <a href="{% url 'auth-url' %}" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-full">Connect Spotify</a>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="max-w-md p-6 rounded-lg shadow-lg bg-red-500 text-white">
+        <h2 class="text-2xl font-semibold mb-2">Access Denied</h2>
+        <p>You can only view the profile of a friend.</p>
+        <a href="{% url 'mapify' %}" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full mt-4">Return to Map</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

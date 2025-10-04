@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resend OTP - Matchify</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black text-white min-h-screen flex items-center justify-center">
+    <div class="text-center max-w-md p-6 bg-gray-800 rounded-lg shadow-lg">
+        <h1 class="text-4xl font-bold text-green-500 mb-4">Resend OTP</h1>
+        <!-- Messages -->
+        <div id="messages">
+            {% if messages %}
+                {% for message in messages %}
+                    <h5 class="text-red-500 mb-4">{{ message }}</h5>
+                {% endfor %}
+            {% endif %}
+        </div>
+        <script>
+            setTimeout(function() {
+                var messages = document.querySelectorAll('.text-red-500');
+                messages.forEach(function(message) {
+                    message.style.display = 'none';
+                });
+            }, 5000);
+        </script>
+        <!-- Resend OTP Form -->
+        <form method="POST" class="mb-4">
+            {% csrf_token %}
+            <div class="mb-4">
+                <label for="email" class="block text-sm font-medium text-white">Email</label>
+                <input type="email" name="email" id="email" class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
+            </div>
+            <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-6 rounded-full shadow-md transition-transform transform hover:scale-105 w-full">
+                Resend OTP
+            </button>
+        </form>
+    </div>
+</body>
+</html>
