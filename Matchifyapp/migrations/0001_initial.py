@@ -71,5 +71,6 @@ class Migration(migrations.Migration):
             options={
                 'unique_together': {('from_user', 'to_user')},
             },
+            
         ),
     ]

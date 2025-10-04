@@ -1,4 +1,5 @@
 from datetime import timedelta
+from urllib.parse import quote_plus
 import random
 import logging
 from django.shortcuts import render, redirect, get_object_or_404
@@ -14,6 +15,8 @@ from django.core.mail import send_mail
 from django.db.models.signals import post_save
 from django.contrib.auth import get_user_model
 from .forms import LoginForm, RegisterForm
+from .forms import EditProfileForm
+from django.db import DatabaseError
 import base64
 from requests import post, get, Request
 import json
@@ -474,6 +477,57 @@ def get_top_artists(user, time_range='medium_term'):
         print("Failed to parse JSON:", str(e))  # Debug print
         print("Raw response:", result.content)  # Debug print
         return {'Error': f'Issue with request: {str(e)}'}
+
+
+def get_top_tracks(user, time_range='medium_term'):
+    """Fetch a user's top tracks from Spotify. Returns list or {'Error': msg}."""
+    token = get_token(user)
+    print("Checking token for tracks:", token is not None)  # Debug print
+    if not token:
+        print("No token found for user (tracks):", user.username)  # Debug print
+        return {'Error': 'No valid token found.'}
+
+    url = "https://api.spotify.com/v1/me/top/tracks"
+    headers = get_auth_header(user)
+    if not headers:
+        return {'Error': 'No valid token found.'}
+
+    params = {
+        'time_range': time_range,
+        'limit': 10
+    }
+
+    print("Making request to (tracks):", url)  # Debug print
+    print("With headers (tracks):", headers)  # Debug print
+    print("With params (tracks):", params)  # Debug print
+
+    result = get(url, headers=headers, params=params)
+    print("Response status code (tracks):", result.status_code)  # Debug print
+    print("Response content (tracks):", result.content[:500])  # Debug print
+
+    try:
+        json_result = result.json()
+        if 'items' in json_result:
+            return json_result['items']
+        else:
+            print("JSON response for tracks but no items:", json_result)  # Debug print
+            return {'Error': 'No top tracks found.'}
+    except Exception as e:
+        print("Failed to parse JSON for tracks:", str(e))  # Debug print
+        print("Raw response (tracks):", result.content)  # Debug print
+        return {'Error': f'Issue with request: {str(e)}'}
+
+
+@login_required
+def top_tracks(request):
+    # Render a full page showing a user's top tracks (for the current logged-in user)
+    tracks_range = request.GET.get('tracks_range', 'medium_term')
+    try:
+        tracks = get_top_tracks(request.user, time_range=tracks_range)
+    except Exception as e:
+        tracks = {'Error': str(e)}
+
+    return render(request, 'toptracks.html', {'top_tracks': tracks, 'time_range': tracks_range})
     
 @login_required
 def top_artists(request):
@@ -665,18 +719,147 @@ def profile(request, username):
         except:
             pass
 
+    # Track range and top tracks (safe defaults). Templates expect these keys.
+    tracks_range = request.GET.get('tracks_range', 'medium_term')
+    top_tracks = None
+    if user_spotify:
+        try:
+            # If a helper to fetch top tracks exists, prefer using it. Otherwise leave None.
+            if 'get_top_tracks' in globals():
+                top_tracks = globals()['get_top_tracks'](user, time_range=tracks_range)
+        except Exception:
+            top_tracks = None
+
+    # Safely fetch profile bio without triggering a ProgrammingError if the Profile table doesn't exist yet
+    profile_exists = False
+    profile_bio = None
+    try:
+        from .models import Profile
+        try:
+            prof = Profile.objects.filter(user=user).first()
+            if prof is not None:
+                profile_exists = True
+                # Ensure we return an empty string if bio is None so template logic works
+                profile_bio = prof.bio or ''
+        except Exception as e:
+            # Any DB-level exception (e.g., relation does not exist) will be caught here
+            print(f"Debug: Could not query Profile for user {user.username}: {e}")
+            profile_exists = False
+            profile_bio = None
+    except Exception:
+        # models.Profile may not even import if migrations haven't been applied; swallow errors
+        profile_exists = False
+        profile_bio = None
+
+    # Prefer a tmp_bio passed as a GET param (set by edit_bio redirect) for immediate UI feedback.
+    tmp_bio = request.GET.get('tmp_bio')
+    if tmp_bio:
+        profile_bio = tmp_bio
+        profile_exists = True
+    else:
+        # Fall back to session-stashed bio if present
+        try:
+            s_tmp = request.session.pop('tmp_profile_bio', None)
+            if s_tmp is not None:
+                profile_bio = s_tmp
+                profile_exists = True
+        except Exception:
+            pass
+
     user_data = {
         'user': user,
         'spotify_connected': user_spotify,
         'top_artists': top_artists,
+        'top_tracks': top_tracks,
+        'tracks_range': tracks_range,
         'is_current_user': current_user == user,
         'is_friend': is_friend,
         'friend_request_sent': friend_request_sent,
         'friend_request_received': friend_request_received,
         'compatibility_score': compatibility_score,
+        'profile_exists': profile_exists,
+        'profile_bio': profile_bio,
     }
 
+    # If a flash message exists for edit success, include it
+    edit_success = request.GET.get('edit_success')
+    if edit_success:
+        messages.success(request, "Profile updated successfully.")
+
     return render(request, "profile.html", {'user_data': user_data})
+
+
+@login_required
+def edit_bio(request):
+    if request.method != 'POST':
+        return redirect('home')
+    # Debugging: log that we received a POST for editing bio
+    logger.info(f"edit_bio called by user={getattr(request.user, 'username', None)} method={request.method}")
+    form = EditProfileForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Invalid input.")
+        return redirect('profile', username=request.user.username)
+
+    bio = form.cleaned_data.get('bio', '')
+
+    # Always stash the submitted bio in session first so the profile view can show it
+    # immediately even if the database table is missing or the save fails.
+    try:
+        request.session['tmp_profile_bio'] = bio
+    except Exception:
+        print('Debug: Unable to set session tmp_profile_bio before DB op')
+
+    # Ensure the user has a Profile (should be created via signal).
+    # Avoid accessing request.user.profile directly (that triggers a related-object lookup
+    # which will raise ProgrammingError if the table doesn't exist). Use filter().first()
+    # inside a try/except to handle missing table gracefully.
+    try:
+        from .models import Profile
+        try:
+            profile = Profile.objects.filter(user=request.user).first()
+        except DatabaseError as db_qe:
+            messages.error(request, "Unable to save bio: database table for profiles is missing or inaccessible. Please run migrations (makemigrations && migrate) and try again.")
+            return redirect('profile', username=request.user.username)
+
+        if not profile:
+            # Create one if missing. Guard create with DatabaseError too.
+            try:
+                profile = Profile.objects.create(user=request.user, bio=bio)
+                logger.info(f"edit_bio: created profile for {request.user.username}")
+                # stash the bio in session so the UI shows it immediately
+                try:
+                    request.session['tmp_profile_bio'] = bio
+                except Exception:
+                    print('Debug: Unable to set session tmp_profile_bio')
+            except DatabaseError:
+                messages.error(request, "Unable to save bio: database table for profiles is missing. Please run migrations and try again.")
+                return redirect('profile', username=request.user.username)
+            except Exception as e:
+                messages.error(request, f"Unable to save bio: {e}")
+                return redirect('profile', username=request.user.username)
+        else:
+            try:
+                profile.bio = bio
+                profile.save()
+                logger.info(f"edit_bio: updated profile.bio for {request.user.username}")
+                # stash the bio in session so the UI shows it immediately
+                try:
+                    request.session['tmp_profile_bio'] = bio
+                except Exception:
+                    print('Debug: Unable to set session tmp_profile_bio')
+            except DatabaseError:
+                messages.error(request, "Unable to save bio: database table for profiles is missing. Please run migrations and try again.")
+                return redirect('profile', username=request.user.username)
+            except Exception as e:
+                messages.error(request, f"Unable to save bio: {e}")
+                return redirect('profile', username=request.user.username)
+    except Exception:
+        # If importing Profile fails (e.g., migrations not applied), surface friendly message
+        messages.error(request, "Unable to save bio: Profile model/table unavailable. Please run makemigrations and migrate.")
+        return redirect('profile', username=request.user.username)
+
+    # Redirect back to profile with success flag
+    return redirect(reverse('profile', args=[request.user.username]) + '?edit_success=1')
 
 @login_required
 def get_current_track_endpoint(request):
@@ -743,31 +926,31 @@ def calculate_compatibility(user1, user2):
         # Get top artists for both users
         user1_artists = get_top_artists(user1, 'long_term')
         user2_artists = get_top_artists(user2, 'long_term')
-        
+
+        # If the helper returned an error dict, bail out
         if isinstance(user1_artists, dict) or isinstance(user2_artists, dict):
             return None
-            
-        # Get artist IDs for comparison
-        user1_artist_ids = set(artist['id'] for artist in user1_artists)
-        user2_artist_ids = set(artist['id'] for artist in user2_artists)
-        
+
+        # Extract artist IDs
+        user1_artist_ids = set(artist.get('id') for artist in user1_artists if 'id' in artist)
+        user2_artist_ids = set(artist.get('id') for artist in user2_artists if 'id' in artist)
+
         # Calculate common artists
         common_artists = user1_artist_ids.intersection(user2_artist_ids)
-        
-        # Calculate genres
-        user1_genres = set(genre for artist in user1_artists for genre in artist['genres'])
-        user2_genres = set(genre for artist in user2_artists for genre in artist['genres'])
+
+        # Calculate genre overlap
+        user1_genres = set(genre for artist in user1_artists for genre in artist.get('genres', []))
+        user2_genres = set(genre for artist in user2_artists for genre in artist.get('genres', []))
         common_genres = user1_genres.intersection(user2_genres)
-        
-        # Calculate score (50% based on artists, 50% based on genres)
-        artist_score = len(common_artists) / max(len(user1_artist_ids), 1) * 50
-        genre_score = len(common_genres) / max(len(user1_genres), 1) * 50
-        
+
+        # Score components (each weighted to 50)
+        artist_score = (len(common_artists) / max(len(user1_artist_ids), 1)) * 50
+        genre_score = (len(common_genres) / max(len(user1_genres), 1)) * 50
+
         total_score = round(artist_score + genre_score)
-        return min(total_score, 100)  # Cap at 100%
-        
-    except Exception as e:
-        print(f"Error calculating compatibility: {e}")
+        return min(total_score, 100)
+    except Exception:
+        # If anything goes wrong while calculating compatibility, return None
         return None
 @login_required
 def get_connections(request):

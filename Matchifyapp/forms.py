@@ -19,6 +19,10 @@ class RegisterForm(forms.ModelForm):
         fields = ['username', 'email', 'password', 'passwordrepeat']
 
 
+class EditProfileForm(forms.Form):
+    bio = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows':3, 'placeholder':'Tell others about yourself'}), max_length=2000)
+
+
 from .models import Post
 
 
