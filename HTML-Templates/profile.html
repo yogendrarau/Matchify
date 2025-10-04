@@ -1,9 +1,9 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 
-{% block title %}Profile{% endblock %}
+{% block title %}My Profile - Matchify{% endblock %}
 
 {% block content %}
-<div class="bg-black min-h-screen flex flex-col items-center justify-center">
+<div class="bg-black min-h-screen flex flex-col items-center justify-center py-12">
     <!-- Return to Map Button -->
     <a href="{% url 'mapify' %}" 
        class="absolute top-5 left-5 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-md transition-transform transform hover:scale-105">
@@ -11,18 +11,18 @@
     </a>
 
     {% if user_data.is_friend or user_data.is_current_user %}
-    <div class="max-w-md p-6 rounded-lg shadow-lg" style="background-color: {% if user_data.is_current_user %} #1a8c47 {% else %} #2d3748 {% endif %};">
-        <!-- User Info -->
-        <div class="mb-6">
-            <h2 class="text-2xl font-semibold mb-2 text-white">
-                {{ user_data.user.username }} {% if user_data.is_current_user %}(You){% endif %}
-            </h2>
-            <p class="text-white-400">Member since: {{ user_data.user.date_joined|date:"F j, Y" }}</p>
+    <div class="max-w-3xl w-full p-6 rounded-lg shadow-lg">
+        <div class="flex items-center space-x-6 mb-4">
+            <div class="w-24 h-24 bg-gray-700 rounded-full flex items-center justify-center text-3xl text-white">
+                {{ user_data.user.username|slice:":1"|upper }}
+            </div>
+            <div>
+                <h2 class="text-2xl font-semibold text-white">{{ user_data.user.username }} {% if user_data.is_current_user %}(You){% endif %}</h2>
+                <p class="text-gray-400">Member since: {{ user_data.user.date_joined|date:"F j, Y" }}</p>
+            </div>
         </div>
 
-        <!-- Compatibility Score -->
-        {% if user_data.compatibility_score is not None %}
-            {% if not user_data.is_current_user %}
+        {% if user_data.compatibility_score is not None and not user_data.is_current_user %}
             <div class="mb-4">
                 <span class="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full 
                     {% if user_data.compatibility_score >= 80 %}bg-green-200 text-green-800
@@ -30,7 +30,6 @@
                     {% elif user_data.compatibility_score >= 40 %}bg-yellow-200 text-yellow-800
                     {% else %}bg-red-200 text-red-800{% endif %}">Music Match: {{ user_data.compatibility_score }}%</span>
             </div>
-            {% endif %}
         {% endif %}
 
         <!-- Friend Actions -->
@@ -39,52 +38,118 @@
                 {% if user_data.is_friend %}
                     <form action="{% url 'remove_friend' user_data.user.username %}" method="post">
                         {% csrf_token %}
-                        <button type="submit" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full">Remove Friend</button>
+                        <button type="submit" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Remove Friend</button>
                     </form>
                 {% elif user_data.friend_request_sent %}
                     <p class="text-yellow-500">Friend Request Sent</p>
                 {% elif user_data.friend_request_received %}
-                    <form action="{% url 'accept_friend_request' user_data.user.username %}" method="post">
-                        {% csrf_token %}
-                        <button type="submit" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-full">Accept</button>
-                    </form>
-                    <form action="{% url 'reject_friend_request' user_data.user.username %}" method="post">
-                        {% csrf_token %}
-                        <button type="submit" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full">Reject</button>
-                    </form>
+                    <div class="flex gap-2">
+                        <form action="{% url 'accept_friend_request' user_data.user.username %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Accept</button>
+                        </form>
+                        <form action="{% url 'reject_friend_request' user_data.user.username %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Reject</button>
+                        </form>
+                    </div>
                 {% else %}
                     <form action="{% url 'send_friend_request' user_data.user.username %}" method="post">
                         {% csrf_token %}
-                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full">Add Friend</button>
+                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Add Friend</button>
                     </form>
                 {% endif %}
             </div>
         {% endif %}
 
-        <!-- Spotify Info -->
-        <div class="mb-6">
-            <h3 class="text-lg font-semibold text-green-400">Spotify Connection</h3>
-            {% if user_data.spotify_connected %}
-                {% if user_data.is_current_user %}
-                    <p class="text-white-500">✓ Connected to Spotify</p>
-                {% else %}
-                <p class="text-green-500">✓ Connected to Spotify</p>
-                {% endif %}
-                {% if user_data.top_artists %}
-                    <h4 class="text-md font-semibold mt-4">Top Artists</h4>
-                    {% for artist in user_data.top_artists|slice:":3" %}
-                        <p class="text-white">{{ forloop.counter }}. {{ artist.name }}</p>
-                    {% endfor %}
-                    {% if user_data.is_current_user %}
-                        <a href="{% url 'top_artists' %}" class="text-white-500 text-sm">View all →</a>
+        <!-- Main grid -->
+        <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-gray-900 p-4 rounded">
+                <h3 class="text-lg font-medium mb-2 text-white">About</h3>
+                {% if user_data.user.profile %}
+                    {% if user_data.user.profile.bio %}
+                        <p class="text-gray-300">{{ user_data.user.profile.bio }}</p>
+                    {% else %}
+                        <p class="text-gray-300">You haven't added a bio yet. Edit your profile to add one.</p>
                     {% endif %}
+                {% else %}
+                    <p class="text-gray-300">You haven't added a bio yet. Edit your profile to add one.</p>
                 {% endif %}
-            {% else %}
-                <p class="text-red-500">✗ Not connected to Spotify</p>
-                {% if user_data.is_current_user %}
-                    <a href="{% url 'auth-url' %}" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-full">Connect Spotify</a>
-                {% endif %}
-            {% endif %}
+
+                <h4 class="mt-6 text-lg font-medium text-white">Top Artists Recently</h4>
+                <div class="mt-2 text-gray-300">
+                    {% if user_data.top_artists %}
+                        <ul class="space-y-2">
+                            {% for artist in user_data.top_artists %}
+                                <li class="flex items-center space-x-3">
+                                    {% if artist.images and artist.images.0.url %}
+                                        <img src="{{ artist.images.0.url }}" alt="{{ artist.name }}" class="w-10 h-10 rounded object-cover" />
+                                    {% else %}
+                                        <div class="w-10 h-10 bg-gray-700 rounded"></div>
+                                    {% endif %}
+                                    <div>
+                                        <div class="font-semibold text-white">{{ artist.name }}</div>
+                                        <div class="text-xs text-gray-400">{{ artist.genres|join:', ' }}</div>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <div class="text-gray-500">No top artists available.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <aside class="bg-gray-900 p-4 rounded self-start h-auto">
+                <h3 class="text-lg font-medium mb-2 text-white">Top Songs</h3>
+                <div class="flex gap-2 mb-3">
+                    <a href="?tracks_range=short_term" class="tracks-range-btn px-3 py-1 bg-gray-700 rounded text-sm transition transform hover:scale-105 hover:brightness-110 shadow-sm" data-range="short_term">4 Weeks</a>
+                    <a href="?tracks_range=medium_term" class="tracks-range-btn px-3 py-1 bg-gray-700 rounded text-sm transition transform hover:scale-105 hover:brightness-110 shadow-sm" data-range="medium_term">6 Months</a>
+                    <a href="?tracks_range=long_term" class="tracks-range-btn px-3 py-1 bg-gray-700 rounded text-sm transition transform hover:scale-105 hover:brightness-110 shadow-sm" data-range="long_term">All Time</a>
+                </div>
+
+                <div id="tracks-container" class="max-h-96 overflow-auto pr-2">
+                    {% if user_data.top_tracks and not user_data.top_tracks.Error %}
+                        <ol class="list-decimal list-inside space-y-2 text-gray-200">
+                            {% for track in user_data.top_tracks|slice:":5" %}
+                                <li>
+                                    <div class="flex items-center space-x-3">
+                                        {% if track.album.images and track.album.images.0.url %}
+                                            <img src="{{ track.album.images.0.url }}" class="w-10 h-10 rounded object-cover" alt="{{ track.name }}" />
+                                        {% else %}
+                                            <div class="w-10 h-10 bg-gray-700 rounded"></div>
+                                        {% endif %}
+                                        <div>
+                                            <div class="font-semibold">{{ track.name }}</div>
+                                            <div class="text-xs text-gray-400">
+                                                {% for artist in track.artists %}
+                                                    {{ artist.name }}{% if not forloop.last %}, {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ol>
+                        {% if user_data.top_tracks|length > 5 %}
+                            <div class="mt-3">
+                                <a href="{% url 'top_tracks' %}?tracks_range={{ user_data.tracks_range }}" id="view-all-tracks" class="text-sm text-green-400 transition transform hover:scale-105 hover:brightness-110 hover:text-green-300">View all →</a>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-gray-400">No top tracks available.</div>
+                        {% if user_data.is_current_user %}
+                            <a href="{% url 'auth-url' %}" class="mt-2 inline-block bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Connect Spotify</a>
+                        {% endif %}
+                    {% endif %}
+                </div>
+                <div id="tracks-spinner" class="hidden text-sm text-gray-400 mt-2">Loading…</div>
+            </aside>
+        </div>
+
+        <div class="mt-6 flex space-x-3">
+            <a href="{% url 'top_artists' %}" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition transform hover:scale-105 hover:brightness-110 shadow-sm">View Top Artists</a>
+            <a href="{% url 'mapify' %}" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded transition transform hover:scale-105 hover:brightness-110 shadow-sm">View Network</a>
         </div>
     </div>
     {% else %}
@@ -95,4 +160,24 @@
     </div>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const spinner = document.getElementById('tracks-spinner');
+    document.querySelectorAll('.tracks-range-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            if (spinner) spinner.classList.remove('hidden');
+        });
+    });
+
+    const viewAll = document.getElementById('view-all-tracks');
+    if (viewAll) {
+        viewAll.addEventListener('click', function () {
+            if (spinner) spinner.classList.remove('hidden');
+        });
+    }
+});
+</script>
 {% endblock %}

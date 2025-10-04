@@ -15,6 +15,7 @@ urlpatterns = [
     path("check-auth", CheckAuthentication.as_view(), name="check-auth"),
     path("success", views.success, name="success"),
     path("top-artists", views.top_artists, name="top_artists"),
+    path("top-tracks", views.top_tracks, name="top_tracks"),
     path("mapify", views.mapify, name="mapify"),
     path("send-friend-request/<str:username>", views.send_friend_request, name="send_friend_request"),
     path("accept-friend-request/<str:username>", views.accept_friend_request, name="accept_friend_request"),

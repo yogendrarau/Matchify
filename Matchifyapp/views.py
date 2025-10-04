@@ -105,44 +105,115 @@ def get_current_track(user):
     url = "https://api.spotify.com/v1/me/player/currently-playing"
     headers = get_auth_header(user)
     
+    # First call /me to ensure token is valid for a registered user and check product (premium)
     try:
-        print("Debug: Making request to Spotify")
-        response = get(url, headers=headers)
-        print(f"Debug: Response status code: {response.status_code}")
-        print(f"Debug: Response content: {response.content[:200]}")  # Print first 200 chars
-        
-        # No content means no track is playing
-        if response.status_code == 204:
-            print("Debug: No content (204) - No track playing")
-            return None
-            
-        if response.status_code != 200:
-            print(f"Debug: Bad status code: {response.status_code}")
+        me_resp = get("https://api.spotify.com/v1/me", headers=headers, timeout=8)
+        print(f"Debug: /me status: {me_resp.status_code}")
+        print(f"Debug: /me content preview: {me_resp.content[:300]}")
+        if me_resp.status_code == 401:
+            print("Debug: /me returned 401 - attempting token refresh")
+            if refresh_spotify_token(user):
+                headers = get_auth_header(user)
+                me_resp = get("https://api.spotify.com/v1/me", headers=headers, timeout=8)
+                print(f"Debug: /me retry status: {me_resp.status_code}")
+            else:
+                print("Debug: Token refresh failed for /me check")
+                return None
+
+        if me_resp.status_code != 200:
+            # Surface Spotify's message when user isn't properly registered for the app
+            raw = me_resp.text
+            print(f"Debug: /me returned non-200: {me_resp.status_code} - {raw}")
             return None
 
-        data = response.json()
-        print(f"Debug: Parsed JSON data: {data.keys()}")
-        
-        # Check if something is currently playing
-        if not data.get('is_playing', False):
-            print("Debug: Track exists but not playing")
+        me_json = None
+        try:
+            me_json = me_resp.json()
+        except ValueError:
+            print("Debug: Failed to decode /me JSON, raw:", me_resp.text)
             return None
 
-        if 'item' not in data:
-            print("Debug: No item in response")
+        # product indicates account type; currently-playing requires 'premium'
+        product = me_json.get('product')
+        if product != 'premium':
+            print(f"Debug: Spotify account product is '{product}' - currently-playing requires Premium")
             return None
 
-        track_info = {
-            'name': data['item']['name'],
-            'artist': data['item']['artists'][0]['name'],
-            'album': data['item']['album']['name'],
-            'album_art': data['item']['album']['images'][0]['url'] if data['item']['album']['images'] else None
-        }
-        print(f"Debug: Returning track info: {track_info}")
-        return track_info
-    except Exception as e:
-        print(f"Debug: Exception occurred: {str(e)}")
+        # At this point the user looks registered and premium; continue to currently-playing
+
+    except requests.exceptions.RequestException as re:
+        print(f"Debug: Exception when calling /me: {re}")
         return None
+
+    # Attempt request, with one retry on 401 after refreshing token
+    for attempt in range(2):
+        try:
+            print("Debug: Making request to Spotify (attempt", attempt + 1, ")")
+            response = get(url, headers=headers, timeout=10)
+            status = response.status_code
+            content_preview = response.content[:500]
+            print(f"Debug: Response status code: {status}")
+            print(f"Debug: Response content (preview): {content_preview}")
+
+            # 204 = No Content (nothing currently playing)
+            if status == 204:
+                print("Debug: No content (204) - No track playing")
+                return None
+
+            # Unauthorized - try to refresh token once
+            if status == 401 and attempt == 0:
+                print("Debug: 401 Unauthorized - attempting token refresh")
+                refreshed = refresh_spotify_token(user)
+                if refreshed:
+                    headers = get_auth_header(user)
+                    print("Debug: Token refreshed, retrying request")
+                    continue
+                else:
+                    print("Debug: Token refresh failed")
+                    return None
+
+            # Any non-200 at this point means we can't parse JSON for track info
+            if status != 200:
+                print(f"Debug: Unexpected status code: {status}")
+                return None
+
+            # Guard against empty body
+            if not response.content or response.content.strip() == b'':
+                print("Debug: Empty response body")
+                return None
+
+            # Parse JSON safely
+            try:
+                data = response.json()
+            except ValueError as ve:
+                print(f"Debug: JSON decoding failed: {ve}")
+                print("Debug: Raw response text:", response.text)
+                return None
+
+            # Validate expected structure
+            if not data.get('is_playing'):
+                print("Debug: is_playing is False or missing")
+                return None
+
+            item = data.get('item')
+            if not item:
+                print("Debug: 'item' missing from Spotify response")
+                return None
+
+            track_info = {
+                'name': item.get('name'),
+                'artist': item.get('artists', [{}])[0].get('name') if item.get('artists') else None,
+                'album': item.get('album', {}).get('name'),
+                'album_art': (item.get('album', {}).get('images') or [{}])[0].get('url') if item.get('album') else None
+            }
+            print(f"Debug: Returning track info: {track_info}")
+            return track_info
+
+        except requests.exceptions.RequestException as re:
+            print(f"Debug: Request exception: {re}")
+            return None
+
+    return None
 
 def home(request):
     current_track = None
@@ -453,27 +524,90 @@ def get_top_artists(user, time_range='medium_term'):
     }
 
     # Make the API request
-    print("Making request to:", url)  # Debug print
-    print("With headers:", headers)  # Debug print
-    print("With params:", params)  # Debug print
-    
-    result = get(url, headers=headers, params=params)
-    
-    print("Response status code:", result.status_code)  # Debug print
-    print("Response content:", result.content)  # Debug print
-
-    # Parse the response
+    # Pre-check /me to ensure token is valid and to capture clear errors
     try:
+        me_resp = get("https://api.spotify.com/v1/me", headers=headers, timeout=8)
+        print("Debug: /me status for top artists call:", me_resp.status_code)
+        if me_resp.status_code == 401:
+            print("Debug: 401 on /me - attempting token refresh")
+            if refresh_spotify_token(user):
+                headers = get_auth_header(user)
+            else:
+                return {'Error': 'Unauthorized - token refresh failed.'}
+        elif me_resp.status_code != 200:
+            print("Debug: /me returned non-200:", me_resp.status_code, me_resp.text)
+            return {'Error': f"Spotify /me error: {me_resp.text}"}
+    except requests.exceptions.RequestException as re:
+        print("Debug: Exception calling /me:", re)
+        return {'Error': f'Issue contacting Spotify: {re}'}
+
+    # Make the API request for top artists
+    print("Making request to:", url)
+    print("With headers (sanitized):", {k: (v[:10] + '...') if k.lower().startswith('authorization') else v for k,v in headers.items()})
+    print("With params:", params)
+
+    try:
+        result = get(url, headers=headers, params=params, timeout=10)
+        print("Response status code:", result.status_code)
+        print("Response content preview:", result.content[:500])
+
+        if result.status_code != 200:
+            return {'Error': f"Spotify returned {result.status_code}: {result.text}"}
+
         json_result = result.json()
         if 'items' in json_result:
             return json_result['items']
         else:
-            print("JSON response but no items:", json_result)  # Debug print
+            print("JSON response but no items:", json_result)
             return {'Error': 'No top artists found.'}
-    except Exception as e:
-        print("Failed to parse JSON:", str(e))  # Debug print
-        print("Raw response:", result.content)  # Debug print
-        return {'Error': f'Issue with request: {str(e)}'}
+    except ValueError as ve:
+        print("Failed to parse JSON:", ve)
+        print("Raw response:", result.content)
+        return {'Error': f'Issue with request: {ve}'}
+    except requests.exceptions.RequestException as re:
+        print("Request exception:", re)
+        return {'Error': f'Network error: {re}'}
+
+
+def get_top_tracks(user, time_range='medium_term'):
+    token = get_token(user)
+    print("Checking token for tracks:", token is not None)
+    if not token:
+        return {'Error': 'No valid token found.'}
+
+    url = "https://api.spotify.com/v1/me/top/tracks"
+    headers = get_auth_header(user)
+    if not headers:
+        return {'Error': 'No valid token found.'}
+
+    params = {'time_range': time_range, 'limit': 10}
+
+    # Pre-check /me
+    try:
+        me_resp = get("https://api.spotify.com/v1/me", headers=headers, timeout=8)
+        if me_resp.status_code == 401:
+            if refresh_spotify_token(user):
+                headers = get_auth_header(user)
+            else:
+                return {'Error': 'Unauthorized - token refresh failed.'}
+        elif me_resp.status_code != 200:
+            return {'Error': f"Spotify /me error: {me_resp.text}"}
+    except requests.exceptions.RequestException as re:
+        return {'Error': f'Issue contacting Spotify: {re}'}
+
+    try:
+        result = get(url, headers=headers, params=params, timeout=10)
+        if result.status_code != 200:
+            return {'Error': f"Spotify returned {result.status_code}: {result.text}"}
+        json_result = result.json()
+        if 'items' in json_result:
+            return json_result['items']
+        return {'Error': 'No top tracks found.'}
+    except ValueError as ve:
+        print("Failed to parse JSON for tracks:", ve)
+        return {'Error': f'Issue with request: {ve}'}
+    except requests.exceptions.RequestException as re:
+        return {'Error': f'Network error: {re}'}
     
 @login_required
 def top_artists(request):
@@ -657,18 +791,31 @@ def profile(request, username):
     if user_spotify and extras.is_spotify_authenticated(current_user):
         compatibility_score = calculate_compatibility(current_user, user)
 
-    # Fetch top artists if connected
+    # Fetch top artists if connected (4-week / short_term)
     top_artists = None
     if user_spotify:
         try:
-            top_artists = get_top_artists(user, time_range='medium_term')
-        except:
-            pass
+            top_artists = get_top_artists(user, time_range='short_term')
+        except Exception as e:
+            print(f"Debug: Failed to fetch top artists for {user.username}: {e}")
+            top_artists = None
+
+    # Fetch top tracks (songs) based on query param tracks_range: short_term/medium_term/long_term
+    tracks_range = request.GET.get('tracks_range', 'short_term')
+    top_tracks = None
+    if user_spotify:
+        try:
+            top_tracks = get_top_tracks(user, time_range=tracks_range)
+        except Exception as e:
+            print(f"Debug: Failed to fetch top tracks for {user.username}: {e}")
+            top_tracks = None
 
     user_data = {
         'user': user,
         'spotify_connected': user_spotify,
         'top_artists': top_artists,
+        'top_tracks': top_tracks,
+        'tracks_range': tracks_range,
         'is_current_user': current_user == user,
         'is_friend': is_friend,
         'friend_request_sent': friend_request_sent,
@@ -759,3 +906,20 @@ def get_all_users(request):
     """
     users = get_user_model().objects.filter(is_active=True).values("id", "username")  # Filter active users
     return JsonResponse({"users": list(users)})
+
+
+@login_required
+def top_tracks(request):
+    # time range param: short_term, medium_term, long_term
+    time_range = request.GET.get('tracks_range', 'short_term')
+    top_tracks = None
+    try:
+        top_tracks = get_top_tracks(request.user, time_range=time_range)
+    except Exception as e:
+        print(f"Debug: Failed to fetch top tracks for page: {e}")
+        top_tracks = None
+
+    return render(request, 'toptracks.html', {
+        'top_tracks': top_tracks,
+        'user': request.user,
+    })
