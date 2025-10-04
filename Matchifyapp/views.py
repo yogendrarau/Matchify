@@ -696,7 +696,7 @@ def discussion(request):
     from .models import Post
 
     if request.method == 'POST':
-        form = PostForm(request.POST)
+        form = PostForm(request.POST, request.FILES)
         if form.is_valid():
             post = form.save(commit=False)
             post.author = request.user
@@ -705,7 +705,37 @@ def discussion(request):
     else:
         form = PostForm()
 
-    posts = Post.objects.select_related('author').all()
+    from django.core.files.storage import default_storage
+    from django.conf import settings
+    import os
+    import shutil
+
+    posts_qs = Post.objects.select_related('author').all()
+    posts = []
+    for p in posts_qs:
+        image_exists = False
+        try:
+            if p.image and getattr(p.image, 'name', None):
+                # Check default storage (MEDIA_ROOT)
+                if default_storage.exists(p.image.name):
+                    image_exists = True
+                else:
+                    # Fallback: if file exists in repo-level post_images, copy it into MEDIA_ROOT
+                    repo_path = os.path.join(settings.BASE_DIR, p.image.name)
+                    media_dest = os.path.join(settings.MEDIA_ROOT, p.image.name)
+                    if os.path.exists(repo_path):
+                        os.makedirs(os.path.dirname(media_dest), exist_ok=True)
+                        try:
+                            shutil.copyfile(repo_path, media_dest)
+                            image_exists = True
+                        except Exception:
+                            image_exists = False
+                    else:
+                        image_exists = False
+        except Exception:
+            image_exists = False
+        posts.append({'post': p, 'image_exists': image_exists})
+
     return render(request, 'discussion.html', {'form': form, 'posts': posts})
 
 def calculate_compatibility(user1, user2):
