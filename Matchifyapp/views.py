@@ -231,7 +231,7 @@ def send_otp_email(user):
                                             {otp.otp_code} 
 
                                 Code expires in 45 minutes, use the url below to go back to the website
-                                http://3.17.60.99:8000//verify-email/{user.username}
+                                http://3.17.60.99:8000/verify-email/{user.username}
     """
     sender = "matchify.me@gmail.com"
     receiver = [user.email]
