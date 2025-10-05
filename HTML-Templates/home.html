@@ -95,6 +95,13 @@
                         Discussions
                     </button>
                 </form>
+
+                <!-- Discover / Swipe Button -->
+                <form action="{% url 'swipe' %}" method="get">
+                    <button type="submit" class="mt-4 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold py-4 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 w-full">
+                        Discover
+                    </button>
+                </form>
             </div>
         {% else %}
             <div class="max-w-2xl mx-auto space-y-6">
