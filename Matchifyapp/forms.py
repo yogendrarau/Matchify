@@ -43,3 +43,22 @@ class PostForm(forms.ModelForm):
 
     from django.forms import ClearableFileInput
     image = forms.FileField(required=False, widget=ClearableFileInput(attrs={'class': 'hidden', 'id': 'post-image-input'}))
+
+
+from .models import Comment
+
+
+class CommentForm(forms.ModelForm):
+    class Meta:
+        model = Comment
+        fields = ['content']
+        widgets = {
+            'content': forms.Textarea(attrs={
+                'rows': 2,
+                'placeholder': 'Write a comment...',
+                'class': 'w-full p-2 rounded bg-gray-900 text-white placeholder-gray-400 text-sm'
+            })
+        }
+        labels = {
+            'content': ''
+        }

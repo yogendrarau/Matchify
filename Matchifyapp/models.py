@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     bio = models.TextField(blank=True, null=True)
+    # Avatar is stored in a separate ProfileAvatar model to avoid altering existing DB state directly.
 
     def __str__(self):
         return f"Profile({self.user.username})"
@@ -59,3 +60,50 @@ class Post(models.Model):
 
     def __str__(self):
         return f"Post by {self.author} at {self.created_at}"
+
+
+class Comment(models.Model):
+    """Comments attached to discussion posts."""
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='comments')
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Comment by {self.author} on Post {self.post.id}"
+
+
+class Reaction(models.Model):
+    """User reaction to posts: like (1) or dislike (-1)."""
+    LIKE = 1
+    DISLIKE = -1
+
+    VALUE_CHOICES = (
+        (LIKE, 'Like'),
+        (DISLIKE, 'Dislike'),
+    )
+
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='reactions', null=True, blank=True)
+    # Allow reactions to target comments as well. Exactly one of (post, comment) should be set.
+    comment = models.ForeignKey('Comment', on_delete=models.CASCADE, related_name='reactions', null=True, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reactions')
+    value = models.SmallIntegerField(choices=VALUE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        # Ensure a user can react once per post or once per comment.
+        unique_together = ('post', 'user')
+
+    def __str__(self):
+        return f"Reaction({self.user.username} -> {self.post.id}: {self.value})"
+
+
+class ProfileAvatar(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile_avatar')
+    avatar = models.FileField(upload_to='profile_avatars/', blank=True, null=True)
+
+    def __str__(self):
+        return f"ProfileAvatar({self.user.username})"
