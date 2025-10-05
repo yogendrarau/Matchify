@@ -8,10 +8,15 @@ class Profile(models.Model):
     bio = models.TextField(blank=True, null=True)
     # Profile image field for user avatars. Use db_column 'avatar' to match the
     # existing database column (some environments already have an 'avatar' column).
+<<<<<<< HEAD
     image = models.ImageField(upload_to='profile_images/', blank=True, null=True, db_column='avatar')
     # Optional JSON blob to store a small representation of the user's chosen display song
     # Example: {"id": "spotify:track:...", "name": "Song Name", "artist": "Artist", "album_art": "https://..."}
     display_song = models.JSONField(blank=True, null=True)
+=======
+    # Use FileField instead of ImageField to avoid requiring Pillow at runtime.
+    image = models.FileField(upload_to='profile_images/', blank=True, null=True, db_column='avatar')
+>>>>>>> 0c1318ef5bfe40a1a446f65ecfe19c072fec7604
 
     def __str__(self):
         return f"Profile({self.user.username})"
@@ -104,6 +109,31 @@ class Reaction(models.Model):
 
     def __str__(self):
         return f"Reaction({self.user.username} -> {self.post.id}: {self.value})"
+
+
+class ArtistListen(models.Model):
+    """Aggregated listening time for a user for a specific artist.
+
+    This model stores total milliseconds listened for a (user, artist) pair.
+    A background job or management command should populate/update these rows by
+    pulling users' recently-played history from Spotify and attributing track
+    durations to their primary artist(s).
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='artist_listens')
+    artist_id = models.CharField(max_length=128, blank=True, null=True, db_index=True)
+    artist_name = models.CharField(max_length=255, blank=True, null=True, db_index=True)
+    total_ms = models.BigIntegerField(default=0)  # total milliseconds listened
+    play_count = models.IntegerField(default=0)  # number of times this artist appeared in recent-play history
+    last_updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'artist_id')
+
+    def minutes(self):
+        return (self.total_ms or 0) / 60000.0
+
+    def __str__(self):
+        return f"ArtistListen(user={self.user.username} artist={self.artist_name} ms={self.total_ms})"
 
 
  

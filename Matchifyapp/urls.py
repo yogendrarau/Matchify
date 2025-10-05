@@ -35,6 +35,10 @@ urlpatterns = [
     path('reset/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(template_name='password_reset_confirm.html'), name='password_reset_confirm'),
     path('reset/done/', auth_views.PasswordResetCompleteView.as_view(template_name='password_reset_complete.html'), name='password_reset_complete'),
     path('api/pending_requests', views.pending_requests, name='pending_requests'),
+    # Leaderboard endpoints
+    path('leaderboard/autocomplete', views.leaderboard_autocomplete, name='leaderboard_autocomplete'),
+    path('leaderboard/results', views.leaderboard_results, name='leaderboard_results'),
+    path('leaderboard', views.leaderboard_page, name='leaderboard_page'),
     path('friends/', views.friends, name='friends'),
     # Swipe / discovery routes
     path('swipe/', views.swipe, name='swipe'),

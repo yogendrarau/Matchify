@@ -10,13 +10,57 @@
 .glow-green {
     text-shadow: 0 0 8px rgba(34,197,94,0.45), 0 0 18px rgba(34,197,94,0.12);
 }
+/* Animated gold medal icon used in the Leaderboard button */
+.medal {
+    display: inline-block;
+    transform-origin: center;
+    animation: float 2s ease-in-out infinite;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));
+}
+.medal.delay {
+    animation-delay: 0.12s;
+}
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+.leaderboard-btn:focus { outline: 2px solid rgba(59,130,246,0.35); outline-offset: 2px; }
 </style>
 {% endblock %}
 
 {# AJAX interceptor script moved to the bottom scripts block so it loads correctly. #}
 {% block content %}
 <div class="max-w-4xl mx-auto py-12">
-            <h1 class="text-3xl font-bold text-center mb-6 text-green-500 glow-green">Community Discussion</h1>
+            <div class="flex items-center justify-between mb-6">
+                <h1 class="text-3xl font-bold mb-0 text-green-500 glow-green">Community Discussion</h1>
+                <a href="#" class="leaderboard-btn ml-4 inline-flex items-center bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-md transition-transform transform-gpu hover:scale-105" role="button" aria-label="Leaderboard">
+                    <!-- left gold medal -->
+                    <svg aria-hidden="true" class="w-5 h-5 medal mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="g1" x1="0" x2="1">
+                                <stop offset="0" stop-color="#FFD54A" />
+                                <stop offset="1" stop-color="#FFC107" />
+                            </linearGradient>
+                        </defs>
+                        <circle cx="12" cy="8" r="4" fill="url(#g1)" />
+                        <path d="M12 6.2l0.9 1.8L14.8 8l-1.5 1.1L13.6 11 12 10l-1.6 1-0.3-1.9L8.7 8l1.9-0.0L12 6.2z" fill="#E6A800" opacity="0.95" />
+                        <path d="M8 14l-1.5 4 5-2 5 2L16 14" stroke="#D39E00" stroke-width="0.8" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    <span>Leaderboard</span>
+                    <!-- right gold medal -->
+                    <svg aria-hidden="true" class="w-5 h-5 medal delay ml-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="g2" x1="0" x2="1">
+                                <stop offset="0" stop-color="#FFD54A" />
+                                <stop offset="1" stop-color="#FFC107" />
+                            </linearGradient>
+                        </defs>
+                        <circle cx="12" cy="8" r="4" fill="url(#g2)" />
+                        <path d="M12 6.2l0.9 1.8L14.8 8l-1.5 1.1L13.6 11 12 10l-1.6 1-0.3-1.9L8.7 8l1.9-0.0L12 6.2z" fill="#E6A800" opacity="0.95" />
+                        <path d="M8 14l-1.5 4 5-2 5 2L16 14" stroke="#D39E00" stroke-width="0.8" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </a>
+            </div>
 
     <div class="bg-gray-800 p-6 rounded-lg mb-6">
     <h2 class="text-xl font-semibold mb-2 text-purple-500">Create a Post</h2>
@@ -48,21 +92,21 @@
         <div class="flex items-center space-x-3">
             <button class="px-4 py-2 bg-gray-800 text-white rounded-md font-medium border border-gray-700">Filter</button>
 
-            <div class="relative group">
-                <button class="text-blue-500 hover:text-blue-600 focus:outline-none flex items-center" aria-label="Sort options">
+            <div class="relative" id="filter-dropdown">
+                <button id="filter-toggle" aria-haspopup="true" aria-expanded="false" class="text-blue-500 hover:text-blue-600 focus:outline-none flex items-center" aria-label="Sort options">
                     <!-- filter icon -->
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M3 5h18v2H3V5zm4 6h10v2H7v-2zm6 6v2H7v-2h6z"/>
                     </svg>
                 </button>
 
-                <!-- dropdown appears on hover of the parent (.group) -->
-                <div class="absolute left-0 mt-2 w-56 bg-gray-900 text-white rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto z-50">
+                <!-- dropdown is click/toggle controlled for accessibility and touch devices -->
+                <div id="filter-menu" class="absolute left-0 mt-2 w-56 bg-gray-900 text-white rounded-lg shadow-lg hidden z-50" role="menu" aria-labelledby="filter-toggle">
                     <div class="px-4 py-2 text-sm font-semibold border-b border-gray-800">Sort By:</div>
-                    <ul class="text-sm">
-                        <li><a href="?sort=newest" class="block px-4 py-2 hover:bg-gray-800">Newest to Oldest</a></li>
-                        <li><a href="?sort=oldest" class="block px-4 py-2 hover:bg-gray-800">Oldest to Newest</a></li>
-                        <li><a href="?sort=most_liked" class="block px-4 py-2 hover:bg-gray-800">Most Liked</a></li>
+                    <ul class="text-sm" role="none">
+                        <li role="none"><a role="menuitem" href="?sort=newest" class="block px-4 py-2 hover:bg-gray-800">Newest to Oldest</a></li>
+                        <li role="none"><a role="menuitem" href="?sort=oldest" class="block px-4 py-2 hover:bg-gray-800">Oldest to Newest</a></li>
+                        <li role="none"><a role="menuitem" href="?sort=most_liked" class="block px-4 py-2 hover:bg-gray-800">Most Liked</a></li>
                     </ul>
                 </div>
             </div>
@@ -204,6 +248,24 @@
         });
     </script>
 
+    <!-- Leaderboard modal -->
+    <div id="leaderboard-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-60">
+        <div class="bg-gray-900 rounded-lg p-6 w-full max-w-xl mx-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold">School Leaderboard</h2>
+                <button id="leaderboard-close" class="text-gray-300 hover:text-white">✕</button>
+            </div>
+            <div>
+                <label for="leaderboard-search" class="sr-only">Search artist</label>
+                <input id="leaderboard-search" type="search" placeholder="Search artist..." class="w-full p-3 rounded bg-gray-800 text-white" autocomplete="off" />
+                <div id="leaderboard-suggestions" class="mt-2 bg-gray-800 rounded max-h-48 overflow-auto hidden"></div>
+            </div>
+            <div id="leaderboard-results" class="mt-4 text-sm text-gray-200">
+                <!-- results will be populated here -->
+            </div>
+        </div>
+    </div>
+
     <script>
         // Smooth-scroll to comment anchor if present in URL after redirect
         document.addEventListener('DOMContentLoaded', function () {
@@ -295,5 +357,128 @@
         attach();
     }
 })();
+</script>
+<script>
+// Leaderboard modal behavior and autocomplete
+document.addEventListener('DOMContentLoaded', function () {
+    const toggle = document.querySelector('.leaderboard-btn');
+    const modal = document.getElementById('leaderboard-modal');
+    const closeBtn = document.getElementById('leaderboard-close');
+    const search = document.getElementById('leaderboard-search');
+    const suggestions = document.getElementById('leaderboard-suggestions');
+    const results = document.getElementById('leaderboard-results');
+
+    if (!toggle || !modal) return;
+
+    const openModal = () => { modal.classList.remove('hidden'); modal.classList.add('flex'); search.focus(); };
+    const closeModal = () => { modal.classList.add('hidden'); modal.classList.remove('flex'); suggestions.classList.add('hidden'); results.innerHTML = ''; search.value = ''; };
+
+    toggle.addEventListener('click', function (e) { e.preventDefault(); openModal(); });
+    closeBtn.addEventListener('click', function (e) { e.preventDefault(); closeModal(); });
+    modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+
+    // debounce helper
+    const debounce = (fn, wait) => {
+        let t;
+        return function (...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), wait); };
+    };
+
+    const doAutocomplete = debounce(function () {
+        const q = search.value.trim();
+        if (!q) { suggestions.classList.add('hidden'); return; }
+        fetch(`/leaderboard/autocomplete?q=${encodeURIComponent(q)}`)
+            .then(r => r.json())
+            .then(data => {
+                suggestions.innerHTML = '';
+                if (!data.results || data.results.length === 0) { suggestions.classList.add('hidden'); return; }
+                data.results.forEach(a => {
+                    const el = document.createElement('div');
+                    el.className = 'px-3 py-2 hover:bg-gray-700 cursor-pointer';
+                    el.textContent = a.name;
+                    el.dataset.artistId = a.id || '';
+                    el.addEventListener('click', function () {
+                        // Navigate to standalone leaderboard page for this artist
+                        const url = '/leaderboard?artist_id=' + encodeURIComponent(a.id || '') + '&artist_name=' + encodeURIComponent(a.name || '');
+                        window.location.href = url;
+                    });
+                    suggestions.appendChild(el);
+                });
+                suggestions.classList.remove('hidden');
+            }).catch(e => { suggestions.classList.add('hidden'); });
+    }, 250);
+
+    search.addEventListener('input', doAutocomplete);
+    search.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const name = search.value.trim();
+            if (!name) return;
+            const url = '/leaderboard?artist_name=' + encodeURIComponent(name);
+            window.location.href = url;
+        }
+    });
+
+    function fetchResults(artistId, artistName) {
+        results.innerHTML = '<div class="text-gray-400">Loading...</div>';
+        const params = new URLSearchParams();
+        if (artistId) params.set('artist_id', artistId);
+        if (artistName) params.set('artist_name', artistName);
+        fetch('/leaderboard/results?' + params.toString())
+            .then(r => r.json())
+            .then(data => {
+                if (!data.results || data.results.length === 0) {
+                    results.innerHTML = '<div class="text-gray-400">No listeners found in your school.</div>';
+                    return;
+                }
+                const rows = data.results.map((u, i) => `<div class="flex items-center justify-between py-2 border-b border-gray-800"><div class="font-semibold">${i+1}. ${u.username}</div><div class="text-gray-400">Score: ${u.score}</div></div>`).join('');
+                results.innerHTML = `<div class="text-sm">Top listeners for "${artistName || ''}"</div><div class="mt-2 rounded bg-gray-800">${rows}</div>`;
+            }).catch(e => { results.innerHTML = '<div class="text-red-400">Error loading results</div>'; });
+    }
+});
+</script>
+<script>
+// Dropdown toggle for the filter menu: click to open, click outside or Esc to close,
+// and basic keyboard support (ArrowDown opens and focuses first item).
+document.addEventListener('DOMContentLoaded', function () {
+    const toggle = document.getElementById('filter-toggle');
+    const menu = document.getElementById('filter-menu');
+    if (!toggle || !menu) return;
+
+    const openMenu = () => {
+        menu.classList.remove('hidden');
+        toggle.setAttribute('aria-expanded', 'true');
+    };
+    const closeMenu = () => {
+        menu.classList.add('hidden');
+        toggle.setAttribute('aria-expanded', 'false');
+    };
+
+    toggle.addEventListener('click', function (e) {
+        const expanded = toggle.getAttribute('aria-expanded') === 'true';
+        if (expanded) closeMenu(); else openMenu();
+    });
+
+    // Close when clicking outside
+    document.addEventListener('click', function (e) {
+        if (!menu.contains(e.target) && !toggle.contains(e.target)) {
+            closeMenu();
+        }
+    });
+
+    // Keyboard handling
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closeMenu();
+            toggle.focus();
+        }
+        if ((e.key === 'ArrowDown' || e.key === 'Down') && document.activeElement === toggle) {
+            // open and focus first item
+            e.preventDefault();
+            openMenu();
+            const first = menu.querySelector('[role="menuitem"]');
+            if (first && typeof first.focus === 'function') first.focus();
+        }
+    });
+});
 </script>
 {% endblock %}
