@@ -152,10 +152,14 @@ def get_current_track(user):
         return None
 
 def home(request):
-    current_track = None
-    if request.user.is_authenticated:
-        current_track = get_current_track(request.user)
-    return render(request, "home.html", {'current_track': current_track})
+    # Require authentication to view home. Redirect unauthenticated users to login.
+    if not request.user.is_authenticated:
+        # include next so users return to home after login
+        return redirect(f"{reverse('login')}?next=/")
+
+    current_track = get_current_track(request.user)
+    # Render the new home UI template that matches the provided React layout
+    return render(request, "home_new.html", {'current_track': current_track})
 
 def cleanup_expired_otps():
     OtpToken.objects.filter(otp_expires_at__lt=timezone.now()).delete()
@@ -1123,3 +1127,58 @@ def get_all_users(request):
     """
     users = get_user_model().objects.filter(is_active=True).values("id", "username")  # Filter active users
     return JsonResponse({"users": list(users)})
+
+
+@login_required
+def swipe(request):
+    """Render the swipe UI template"""
+    return render(request, 'swipe.html')
+
+
+@login_required
+def api_swipe_next(request):
+    """Return a dummy candidate and compatibility for testing the frontend.
+
+    In the real app this would find the next unseen user and compute compatibility.
+    For now return a minimal JSON object including calibrated total_score.
+    """
+    from .compatibility import get_music_compatibility
+    User = get_user_model()
+    # choose a candidate (first non-self user)
+    candidate = User.objects.exclude(id=request.user.id).exclude(is_superuser=True).first()
+    if not candidate:
+        return JsonResponse({'error': 'no_candidate'}, status=404)
+
+    # Attempt to compute compatibility; may return None
+    compat = get_music_compatibility(request.user, candidate) or {'total_score': 50.0, 'breakdown': {'artist_compatibility': 22.5, 'genre_compatibility': 15.0, 'track_compatibility': 12.5}, 'common_artists': [], 'common_genres': [], 'common_tracks': []}
+
+    payload = {
+        'user': {
+            'username': candidate.username,
+            'bio': getattr(getattr(candidate, 'profile', None), 'bio', '') or '',
+            'avatar_initial': candidate.username[0].upper() if candidate.username else 'U',
+            'is_spotify_connected': extras.is_spotify_authenticated(candidate)
+        },
+        'top_artists': [],
+        'top_tracks': [],
+        'genres': [],
+        'compatibility': compat
+    }
+    return JsonResponse(payload)
+
+
+@login_required
+def api_swipe_action(request):
+    """Accept swipe action (like/dislike) from frontend. Minimal implementation for testing."""
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        data = request.POST or {}
+
+    action = data.get('action')
+    username = data.get('username')
+    if not username or action not in ('like', 'dislike'):
+        return JsonResponse({'success': False, 'error': 'invalid_payload'}, status=400)
+
+    # Here you'd persist the seen/like and possibly create friendships; just return success
+    return JsonResponse({'success': True, 'action': action, 'username': username})
