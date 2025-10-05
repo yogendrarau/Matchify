@@ -1,40 +1,30 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Resend OTP - Matchify</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>.bg-app{background-image:linear-gradient(to bottom,#000,#0c0c0c,#121212)} .glass{background-color:rgba(26,29,33,.7);backdrop-filter:blur(8px)}</style>
+    {% block head %}{% endblock %}
 </head>
-<body class="bg-black text-white min-h-screen flex items-center justify-center">
-    <div class="text-center max-w-md p-6 bg-gray-800 rounded-lg shadow-lg">
-        <h1 class="text-4xl font-bold text-green-500 mb-4">Resend OTP</h1>
-        <!-- Messages -->
+<body class="bg-app text-white min-h-screen flex items-center justify-center px-4">
+    <div class="max-w-md w-full glass border border-gray-700 rounded-2xl shadow-xl p-6">
+        <h1 class="text-4xl font-extrabold text-center bg-gradient-to-r from-green-400 to-emerald-600 bg-clip-text text-transparent mb-4">Resend OTP</h1>
+
         <div id="messages">
-            {% if messages %}
-                {% for message in messages %}
-                    <h5 class="text-red-500 mb-4">{{ message }}</h5>
-                {% endfor %}
-            {% endif %}
+            {% if messages %}{% for message in messages %}
+                <div class="glass border border-red-500/40 text-red-300 rounded-xl px-3 py-2 mb-2">{{ message }}</div>
+            {% endfor %}{% endif %}
         </div>
-        <script>
-            setTimeout(function() {
-                var messages = document.querySelectorAll('.text-red-500');
-                messages.forEach(function(message) {
-                    message.style.display = 'none';
-                });
-            }, 5000);
-        </script>
-        <!-- Resend OTP Form -->
-        <form method="POST" class="mb-4">
+
+        <form method="POST" class="space-y-4">
             {% csrf_token %}
-            <div class="mb-4">
-                <label for="email" class="block text-sm font-medium text-white">Email</label>
-                <input type="email" name="email" id="email" class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
+            <div>
+                <label for="email" class="block text-sm text-gray-300 mb-1">Email</label>
+                <input id="email" name="email" type="email" class="w-full rounded-xl bg-[#0f1216] border border-gray-700 px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
             </div>
-            <button type="submit" class="bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-6 rounded-full shadow-md transition-transform transform hover:scale-105 w-full">
-                Resend OTP
-            </button>
+            <button class="btn btn-emerald w-full py-3">Resend OTP</button>
         </form>
     </div>
 </body>

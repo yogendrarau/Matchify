@@ -1,16 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Success - Matchify</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>.bg-app{background-image:linear-gradient(to bottom,#000,#0c0c0c,#121212)} .glass{background-color:rgba(26,29,33,.7);backdrop-filter:blur(8px)}</style>
 </head>
-<body class="bg-black text-white min-h-screen flex items-center justify-center">
-    <div class="text-center max-w-md p-6 bg-gray-800 rounded-lg shadow-lg">
-        <h1 class="text-4xl font-bold text-green-500 mb-4">Success!</h1>
-        <p class="text-white">Your operation was successful.</p>
-        <a href="/" class="mt-4 inline-block bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-6 rounded-full shadow-md transition-transform transform hover:scale-105">Go to Home</a>
+<body class="bg-app text-white min-h-screen flex items-center justify-center px-4">
+    <div class="max-w-md w-full glass border border-gray-700 rounded-2xl shadow-xl p-6 text-center">
+        <h1 class="text-4xl font-extrabold bg-gradient-to-r from-green-400 to-emerald-600 bg-clip-text text-transparent mb-2">Success!</h1>
+        <p class="text-gray-200">Your operation was successful.</p>
+        <a href="/" class="mt-4 inline-flex btn btn-purple px-6 py-3">Go to Home</a>
     </div>
 </body>
 </html>

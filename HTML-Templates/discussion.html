@@ -1,62 +1,39 @@
 {% extends 'base.html' %}
 
+{% load static %}
 {% block title %}Discussion - Matchify{% endblock %}
 
-{% load static %}
-
 {% block head %}
-<style>
-/* subtle green glow matching home page green (Tailwind green-500) */
-.glow-green {
-    text-shadow: 0 0 8px rgba(34,197,94,0.45), 0 0 18px rgba(34,197,94,0.12);
-}
-</style>
+<style>.glow-green{ text-shadow:0 0 8px rgba(34,197,94,.45),0 0 18px rgba(34,197,94,.12)}</style>
 {% endblock %}
 
-{# AJAX interceptor script moved to the bottom scripts block so it loads correctly. #}
 {% block content %}
 <div class="max-w-4xl mx-auto py-12">
-            <h1 class="text-3xl font-bold text-center mb-6 text-green-500 glow-green">Community Discussion</h1>
+    <h1 class="text-3xl font-bold text-center mb-6 text-green-400 glow-green">Community Discussion</h1>
 
-    <div class="bg-gray-800 p-6 rounded-lg mb-6">
-    <h2 class="text-xl font-semibold mb-2 text-purple-500">Create a Post</h2>
-        <form id="post-form" method="post" enctype="multipart/form-data">
+    <div class="glass border border-gray-700 rounded-2xl p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-3 text-purple-300">Create a Post</h2>
+        <form id="post-form" method="post" enctype="multipart/form-data" class="space-y-3">
             {% csrf_token %}
-            <div class="mb-3">
-                {{ form.content }}
-            </div>
-            <div class="flex items-center space-x-3">
-                <!-- File icon (no background) using a filled document SVG; color controlled by text-blue-700 -->
-                <label for="post-image-input" class="inline-flex items-center justify-center text-blue-700 hover:text-blue-800 w-10 h-10 cursor-pointer" aria-hidden="true">
-                    <!-- filled document icon -->
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="w-8 h-8" fill="currentColor" aria-hidden="true">
-                        <path d="M45 2H19a6 6 0 0 0-6 6v48a6 6 0 0 0 6 6h26a6 6 0 0 0 6-6V18L45 2zM41 6.6L55.4 21H42a1 1 0 0 1-1-1V6.6zM18 10a1 1 0 0 1 1-1h20v12a4 4 0 0 0 4 4h12v26a3 3 0 0 1-3 3H19a3 3 0 0 1-3-3V10z"/>
-                        <rect x="20" y="30" width="24" height="4" rx="1" fill="white" opacity="1"/>
-                        <rect x="20" y="38" width="18" height="4" rx="1" fill="white" opacity="1"/>
-                    </svg>
-                </label>
+            <div>{{ form.content }}</div>
+            <div class="flex items-center gap-3">
+                <label for="post-image-input" class="cursor-pointer text-blue-400 hover:text-blue-300">📄 Add image</label>
                 <div id="selected-file-name" class="text-sm text-gray-300">No file chosen</div>
-
-                <button type="submit" class="ml-auto mt-0 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded">Post</button>
+                <button class="ml-auto btn btn-emerald px-4 py-2">Post</button>
             </div>
             {{ form.image }}
         </form>
     </div>
 
-    <!-- Filter controls: placed right below Create a Post and above the posts list (moved to left) -->
     <div class="max-w-4xl mx-auto mb-4 flex items-center">
         <div class="flex items-center space-x-3">
             <button class="px-4 py-2 bg-gray-800 text-white rounded-md font-medium border border-gray-700">Filter</button>
-
             <div class="relative group">
                 <button class="text-blue-500 hover:text-blue-600 focus:outline-none flex items-center" aria-label="Sort options">
-                    <!-- filter icon -->
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                         <path d="M3 5h18v2H3V5zm4 6h10v2H7v-2zm6 6v2H7v-2h6z"/>
                     </svg>
                 </button>
-
-                <!-- dropdown appears on hover of the parent (.group) -->
                 <div class="absolute left-0 mt-2 w-56 bg-gray-900 text-white rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto z-50">
                     <div class="px-4 py-2 text-sm font-semibold border-b border-gray-800">Sort By:</div>
                     <ul class="text-sm">
@@ -70,230 +47,173 @@
     </div>
 
     <div class="space-y-4">
-        {% for item in posts %}
-            {% with post=item.post image_exists=item.image_exists likes=item.likes dislikes=item.dislikes user_reaction=item.user_reaction comments=item.comments %}
-            <div class="bg-gray-800 p-4 rounded-lg">
-                <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center space-x-3">
-                        {% if author_avatar_url %}
-                            <img src="{{ author_avatar_url }}" alt="{{ post.author.username }} avatar" class="w-8 h-8 rounded-full object-cover" onerror="this.style.display='none'" />
-                        {% else %}
-                            <!-- try static avatar at /static/avatars/<username>.png, otherwise show initial -->
-                            <img src="{% static 'avatars/' %}{{ post.author.username }}.png" alt="{{ post.author.username }} avatar" class="w-8 h-8 rounded-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" onload="this.nextElementSibling.style.display='none'" />
-                            <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm text-white" style="display:none">{{ post.author.username|slice:":1"|upper }}</div>
-                        {% endif %}
-                        <a href="{% url 'profile' post.author.username %}" class="font-semibold text-blue-500">{{ post.author.username }}</a>
-                    </div>
-                    <div class="text-xs text-gray-400">{{ post.created_at }}</div>
-                </div>
-                <div class="text-gray-200">{{ post.content|linebreaksbr }}</div>
-                {% if post.image and image_exists %}
-                    <div class="mt-3">
-                        <a href="{{ post.image.url }}" target="_blank" rel="noopener noreferrer">
-                            <img src="{{ post.image.url }}" alt="Post image" class="w-full rounded-lg shadow-md mx-auto object-contain max-h-96">
-                        </a>
-                    </div>
-                {% elif post.image and not image_exists %}
-                    <div class="mt-3 text-sm text-gray-400 italic">Image not available</div>
-                {% endif %}
-                <!-- Reaction buttons -->
-                <div class="mt-3 flex items-center space-x-4">
-                    <form action="{% url 'react' post.id %}" method="post" class="inline-flex items-center">
-                        {% csrf_token %}
-                        <input type="hidden" name="value" value="1" />
-                        <button type="submit" title="Like" class="flex items-center space-x-2 text-blue-500 hover:brightness-110">
-                            <!-- Thumbs up -->
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-5 h-5 fill-current" aria-hidden="true">
-                                <path d="M2 21h4V9H2v12zM22 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 2 7.59 7.59C7.22 7.95 7 8.45 7 9v9c0 1.1.9 2 2 2h7c.82 0 1.54-.5 1.84-1.22L22 10z"/>
-                            </svg>
-                            <span class="text-sm text-blue-500">{{ likes }}</span>
-                        </button>
-                    </form>
-
-                    <form action="{% url 'react' post.id %}" method="post" class="inline-flex items-center">
-                        {% csrf_token %}
-                        <input type="hidden" name="value" value="-1" />
-                        <button type="submit" title="Dislike" class="flex items-center space-x-2 text-blue-500 hover:brightness-110">
-                            <!-- Thumbs up rotated 180deg to act as thumbs down -->
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-5 h-5 fill-current transform rotate-180" aria-hidden="true">
-                                <path d="M2 21h4V9H2v12zM22 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 2 7.59 7.59C7.22 7.95 7 8.45 7 9v9c0 1.1.9 2 2 2h7c.82 0 1.54-.5 1.84-1.22L22 10z"/>
-                            </svg>
-                            <span class="text-sm text-blue-500">{{ dislikes }}</span>
-                        </button>
-                    </form>
-                </div>
-
-                <!-- Comments list -->
-                <div class="mt-4 space-y-3">
-                    {% for c in comments %}
-                        {% with comment=c.comment likes=c.likes dislikes=c.dislikes user_reaction=c.user_reaction %}
-                        <div id="comment-{{ comment.id }}" class="bg-gray-900 p-3 rounded">
-                            <div class="flex items-start justify-between">
-                                <div class="flex-1">
-                                    <div class="flex items-center space-x-2">
-                                        {% if c.avatar_url %}
-                                            <img src="{{ c.avatar_url }}" alt="{{ comment.author.username }} avatar" class="w-6 h-6 rounded-full object-cover" onerror="this.style.display='none'" />
-                                        {% else %}
-                                            <img src="{% static 'avatars/' %}{{ comment.author.username }}.png" alt="{{ comment.author.username }} avatar" class="w-6 h-6 rounded-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" onload="this.nextElementSibling.style.display='none'" />
-                                            <div class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-xs text-white" style="display:none">{{ comment.author.username|slice:":1"|upper }}</div>
-                                        {% endif %}
-                                        <div class="text-sm text-blue-400 font-semibold"><a href="{% url 'profile' comment.author.username %}">{{ comment.author.username }}</a> <span class="text-xs text-gray-400">· {{ comment.created_at }}</span></div>
-                                    </div>
-                                    <div class="text-gray-200 text-sm mt-1">{{ comment.content|linebreaksbr }}</div>
-                                </div>
-                                <div class="ml-4 flex flex-col items-center space-y-2">
-                                    <form action="{% url 'react' post.id %}" method="post">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="comment_id" value="{{ comment.id }}" />
-                                        <input type="hidden" name="value" value="1" />
-                                        <button type="submit" title="Like comment" class="flex items-center space-x-1 text-blue-500">
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-4 h-4 fill-current" aria-hidden="true"><path d="M2 21h4V9H2v12zM22 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 2 7.59 7.59C7.22 7.95 7 8.45 7 9v9c0 1.1.9 2 2 2h7c.82 0 1.54-.5 1.84-1.22L22 10z"/></svg>
-                                            <span class="text-xs text-blue-500">{{ likes }}</span>
-                                        </button>
-                                    </form>
-                                    <form action="{% url 'react' post.id %}" method="post">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="comment_id" value="{{ comment.id }}" />
-                                        <input type="hidden" name="value" value="-1" />
-                                        <button type="submit" title="Dislike comment" class="flex items-center space-x-1 text-blue-500">
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-4 h-4 fill-current transform rotate-180" aria-hidden="true"><path d="M2 21h4V9H2v12zM22 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 2 7.59 7.59C7.22 7.95 7 8.45 7 9v9c0 1.1.9 2 2 2h7c.82 0 1.54-.5 1.84-1.22L22 10z"/></svg>
-                                            <span class="text-xs text-blue-500">{{ dislikes }}</span>
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
+        {% if posts %}
+            {% for item in posts %}
+                {% with post=item.post image_exists=item.image_exists likes=item.likes dislikes=item.dislikes user_reaction=item.user_reaction comments=item.comments %}
+                <article class="glass border border-gray-700 rounded-2xl p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center space-x-3">
+                            {% if item.author_avatar_url %}
+                                <img src="{{ item.author_avatar_url }}" alt="{{ post.author.username }} avatar" class="w-8 h-8 rounded-full object-cover" onerror="this.style.display='none'" />
+                            {% else %}
+                                <img src="{% static 'avatars/' %}{{ post.author.username }}.png" alt="{{ post.author.username }} avatar" class="w-8 h-8 rounded-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" onload="this.nextElementSibling.style.display='none'" />
+                                <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm text-white" style="display:none">{{ post.author.username|slice:":1"|upper }}</div>
+                            {% endif %}
+                            <a href="{% url 'profile' post.author.username %}" class="font-semibold text-blue-500">{{ post.author.username }}</a>
                         </div>
-                        {% endwith %}
-                    {% empty %}
-                        <!-- no comments -->
-                    {% endfor %}
-                </div>
+                        <div class="text-xs text-gray-400">{{ post.created_at }}</div>
+                    </div>
+                    <div class="text-gray-200">{{ post.content|linebreaksbr }}</div>
+                    {% if post.image and image_exists %}
+                        <div class="mt-3">
+                            <a href="{{ post.image.url }}" target="_blank" rel="noopener noreferrer">
+                                <img src="{{ post.image.url }}" alt="Post image" class="w-full rounded-lg shadow-md mx-auto object-contain max-h-96">
+                            </a>
+                        </div>
+                    {% elif post.image and not image_exists %}
+                        <div class="mt-3 text-sm text-gray-400 italic">Image not available</div>
+                    {% endif %}
 
-                <!-- Comment form -->
-                <div class="mt-3">
-                    <form action="{% url 'add_comment' post.id %}" method="post" class="flex items-start space-x-3">
-                        {% csrf_token %}
-                        <textarea name="content" rows="2" placeholder="Write a comment..." class="w-full p-2 rounded bg-gray-900 text-white placeholder-gray-400 text-sm"></textarea>
-                        <button type="submit" class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded">Reply</button>
-                    </form>
-                </div>
-            </div>
-            {% endwith %}
-        {% empty %}
+                    <div class="mt-3 flex items-center space-x-4">
+                        <form action="{% url 'react' post.id %}" method="post" class="inline-flex items-center">
+                            {% csrf_token %}
+                            <input type="hidden" name="value" value="1" />
+                            <button type="submit" title="Like" class="flex items-center space-x-2 text-blue-500 hover:brightness-110">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-5 h-5 fill-current" aria-hidden="true"><path d="M2 21h4V9H2v12zM22 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 2 7.59 7.59C7.22 7.95 7 8.45 7 9v9c0 1.1.9 2 2 2h7c.82 0 1.54-.5 1.84-1.22L22 10z"/></svg>
+                                <span class="text-sm text-blue-500">{{ likes }}</span>
+                            </button>
+                        </form>
+                        <form action="{% url 'react' post.id %}" method="post" class="inline-flex items-center">
+                            {% csrf_token %}
+                            <input type="hidden" name="value" value="-1" />
+                            <button type="submit" title="Dislike" class="flex items-center space-x-2 text-blue-500 hover:brightness-110">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-5 h-5 fill-current transform rotate-180" aria-hidden="true"><path d="M2 21h4V9H2v12zM22 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 2 7.59 7.59C7.22 7.95 7 8.45 7 9v9c0 1.1.9 2 2 2h7c.82 0 1.54-.5 1.84-1.22L22 10z"/></svg>
+                                <span class="text-sm text-blue-500">{{ dislikes }}</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="mt-4 space-y-3">
+                        {% if comments %}
+                            {% for c in comments %}
+                                {% with comment=c.comment likes=c.likes dislikes=c.dislikes user_reaction=c.user_reaction %}
+                                <div id="comment-{{ comment.id }}" class="bg-gray-900 p-3 rounded">
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex-1">
+                                            <div class="flex items-center space-x-2">
+                                                {% if c.avatar_url %}
+                                                    <img src="{{ c.avatar_url }}" alt="{{ comment.author.username }} avatar" class="w-6 h-6 rounded-full object-cover" onerror="this.style.display='none'" />
+                                                {% else %}
+                                                    <img src="{% static 'avatars/' %}{{ comment.author.username }}.png" alt="{{ comment.author.username }} avatar" class="w-6 h-6 rounded-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" onload="this.nextElementSibling.style.display='none'" />
+                                                    <div class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-xs text-white" style="display:none">{{ comment.author.username|slice:":1"|upper }}</div>
+                                                {% endif %}
+                                                <div class="text-sm text-blue-400 font-semibold"><a href="{% url 'profile' comment.author.username %}">{{ comment.author.username }}</a> <span class="text-xs text-gray-400">· {{ comment.created_at }}</span></div>
+                                            </div>
+                                            <div class="text-gray-200 text-sm mt-1">{{ comment.content|linebreaksbr }}</div>
+                                        </div>
+                                        <div class="ml-4 flex flex-col items-center space-y-2">
+                                            <form action="{% url 'react' post.id %}" method="post">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="comment_id" value="{{ comment.id }}" />
+                                                <input type="hidden" name="value" value="1" />
+                                                <button type="submit" title="Like comment" class="flex items-center space-x-1 text-blue-500">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-4 h-4 fill-current" aria-hidden="true"><path d="M2 21h4V9H2v12zM22 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 2 7.59 7.59C7.22 7.95 7 8.45 7 9v9c0 1.1.9 2 2 2h7c.82 0 1.54-.5 1.84-1.22L22 10z"/></svg>
+                                                    <span class="text-xs text-blue-500">{{ likes }}</span>
+                                                </button>
+                                            </form>
+                                            <form action="{% url 'react' post.id %}" method="post">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="comment_id" value="{{ comment.id }}" />
+                                                <input type="hidden" name="value" value="-1" />
+                                                <button type="submit" title="Dislike comment" class="flex items-center space-x-1 text-blue-500">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-4 h-4 fill-current transform rotate-180" aria-hidden="true"><path d="M2 21h4V9H2v12zM22 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 2 7.59 7.59C7.22 7.95 7 8.45 7 9v9c0 1.1.9 2 2 2h7c.82 0 1.54-.5 1.84-1.22L22 10z"/></svg>
+                                                    <span class="text-xs text-blue-500">{{ dislikes }}</span>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endwith %}
+                            {% endfor %}
+                        {% else %}
+                            <div class="text-center text-gray-400">No comments yet.</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mt-3">
+                        <form action="{% url 'add_comment' post.id %}" method="post" class="flex items-start space-x-3">
+                            {% csrf_token %}
+                            <textarea name="content" rows="2" placeholder="Write a comment..." class="w-full p-2 rounded bg-gray-900 text-white placeholder-gray-400 text-sm"></textarea>
+                            <button type="submit" class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded">Reply</button>
+                        </form>
+                    </div>
+                </article>
+                {% endwith %}
+            {% endfor %}
+        {% else %}
             <p class="text-center text-gray-400">No posts yet — be the first to share!</p>
-        {% endfor %}
+        {% endif %}
     </div>
 </div>
-    <!-- Bottom-centered Back to Home button (matches provided design) -->
-    <a href="{% url 'home' %}" aria-label="Back to Home" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-blue-400 hover:bg-blue-500 text-white font-bold py-3 px-10 rounded-full shadow-md transition-transform transform-gpu hover:scale-105 flex items-center space-x-3">
-        <span class="text-2xl leading-none">&larr;</span>
-        <span class="text-lg">Back to Home</span>
-    </a>
 
-    <!-- Show selected filename for file input -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const fileInput = document.getElementById('post-image-input');
-            const filenameDisplay = document.getElementById('selected-file-name');
-            if (fileInput && filenameDisplay) {
-                fileInput.addEventListener('change', function () {
-                    const file = fileInput.files[0];
-                    filenameDisplay.textContent = file ? file.name : 'No file chosen';
-                });
-            }
-        });
-    </script>
-
-    <script>
-        // Smooth-scroll to comment anchor if present in URL after redirect
-        document.addEventListener('DOMContentLoaded', function () {
-            if (window.location.hash) {
-                const el = document.querySelector(window.location.hash);
-                if (el) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    // Optionally add a brief highlight
-                    el.classList.add('ring', 'ring-green-400');
-                    setTimeout(() => el.classList.remove('ring', 'ring-green-400'), 1800);
-                }
-            }
-        });
-    </script>
+<a href="{% url 'home' %}" class="fixed bottom-6 left-1/2 -translate-x-1/2 btn btn-purple px-10 py-3 shadow">← Back to Home</a>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
-(() => {
-    // Attach handlers immediately if DOM already loaded, otherwise wait for DOMContentLoaded.
-    const attach = () => {
-        console.log('[discussion] attaching delegated submit handler');
-        // Use event delegation: listen for submit events on the document and intercept
-        // those whose form action contains '/react/'. This is robust to timing/order.
-        document.addEventListener('submit', function(e){
-            try {
-                const form = e.target && (e.target.nodeName === 'FORM' ? e.target : e.target.closest('form'));
-                if (!form) return;
-                const action = form.getAttribute('action') || '';
-                if (action.indexOf('/react/') === -1) return; // not a reaction form
+document.addEventListener('DOMContentLoaded',()=>{
+    const input=document.getElementById('post-image-input');
+    const name=document.getElementById('selected-file-name');
+    if(input&&name){ input.addEventListener('change',()=>{ name.textContent = input.files[0]?.name || 'No file chosen'; });}
 
-                e.preventDefault();
-                const url = action;
-                const formData = new FormData(form);
+    // delegated handler for reaction forms (handles post and comment reactions)
+    document.addEventListener('submit', function(e){
+        try {
+            const form = e.target && (e.target.nodeName === 'FORM' ? e.target : e.target.closest('form'));
+            if (!form) return;
+            const action = form.getAttribute('action') || '';
+            if (action.indexOf('/react/') === -1) return;
 
-                const csrfEl = form.querySelector('[name=csrfmiddlewaretoken]');
-                const csrf = csrfEl ? csrfEl.value : '';
+            e.preventDefault();
+            const url = action;
+            const formData = new FormData(form);
+            const csrfEl = form.querySelector('[name=csrfmiddlewaretoken]');
+            const csrf = csrfEl ? csrfEl.value : '';
 
-                fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRFToken': csrf
-                    },
-                    body: formData
-                }).then(r => r.text().then(t => {
-                    try { return JSON.parse(t); } catch (e) { console.error('[discussion] non-json response', t); return null; }
-                })).then(data => {
-                    if (data && data.success) {
-                        // If this was a comment reaction, prefer updating the specific comment container
-                        const commentInput = form.querySelector('input[name="comment_id"]');
-                        if (commentInput) {
-                            const cid = commentInput.value;
-                            const commentEl = document.getElementById('comment-' + cid);
-                            if (commentEl) {
-                                const spans = commentEl.querySelectorAll('button > span');
-                                if (spans.length > 0) {
-                                    if (data.likes !== undefined && spans[0]) spans[0].textContent = data.likes;
-                                    if (data.dislikes !== undefined && spans[1]) spans[1].textContent = data.dislikes;
-                                }
+            fetch(url, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf },
+                body: formData
+            }).then(r => r.text().then(t => { try { return JSON.parse(t); } catch(e){ return null; } }))
+            .then(data => {
+                if (data && data.success) {
+                    const commentInput = form.querySelector('input[name="comment_id"]');
+                    if (commentInput) {
+                        const cid = commentInput.value;
+                        const commentEl = document.getElementById('comment-' + cid);
+                        if (commentEl) {
+                            const spans = commentEl.querySelectorAll('button > span');
+                            if (spans.length > 0) {
+                                if (data.likes !== undefined && spans[0]) spans[0].textContent = data.likes;
+                                if (data.dislikes !== undefined && spans[1]) spans[1].textContent = data.dislikes;
                             }
-                        } else {
-                            // Post-level reaction: update the surrounding post container
-                            const postContainer = form.closest('.bg-gray-800, .bg-gray-900');
-                            if (postContainer) {
-                                const spans = postContainer.querySelectorAll('button > span');
-                                if (spans.length > 0) {
-                                    if (data.likes !== undefined && spans[0]) spans[0].textContent = data.likes;
-                                    if (data.dislikes !== undefined && spans[1]) spans[1].textContent = data.dislikes;
-                                }
-                            } else {
-                                const likesSpan = form.querySelector('span');
-                                if (likesSpan && data.likes !== undefined) likesSpan.textContent = data.likes;
+                        }
+                    } else {
+                        const postContainer = form.closest('article, .bg-gray-800, .bg-gray-900');
+                        if (postContainer) {
+                            const spans = postContainer.querySelectorAll('button > span');
+                            if (spans.length > 0) {
+                                if (data.likes !== undefined && spans[0]) spans[0].textContent = data.likes;
+                                if (data.dislikes !== undefined && spans[1]) spans[1].textContent = data.dislikes;
                             }
                         }
                     }
-                }).catch(err => console.error('[discussion] fetch error', err));
-
-            } catch (err) {
-                console.error('[discussion] submit handler error', err);
-            }
-        }, true);
-    };
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', attach);
-    } else {
-        attach();
-    }
-})();
+                }
+            }).catch(err => console.error('[discussion] fetch error', err));
+        } catch (err) { console.error('[discussion] submit handler error', err); }
+    }, true);
+});
 </script>
 {% endblock %}
+                if (!form) return;

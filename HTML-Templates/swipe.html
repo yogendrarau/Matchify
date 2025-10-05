@@ -6,13 +6,50 @@
     <div class="relative rounded-3xl border border-gray-700/70 bg-[#0e1216]/80 backdrop-blur-md shadow-2xl overflow-hidden">
       <div class="absolute inset-x-0 -top-10 h-24 bg-gradient-to-b from-emerald-500/20 to-transparent blur-2xl" aria-hidden></div>
 
-      <div id="card-inner" class="px-6 sm:px-10 pt-8 pb-4 text-center">
+      <div id="profile">
+  <div id="card-inner" class="px-6 sm:px-10 pt-8 pb-4 text-center" style="touch-action: none; -webkit-user-drag: none; user-select: none; -webkit-tap-highlight-color: transparent; cursor: grab;">
+  // pointercancel/leave cleanup
+  cardInner.addEventListener('pointercancel', () => { isDragging = false; currentX = 0; cardInner.style.transition = 'transform 200ms ease-out'; cardInner.style.transform = ''; });
+  cardInner.addEventListener('pointerleave', (e) => { if (isDragging) { cardInner.dispatchEvent(new PointerEvent('pointerup', e)); } });
+
+  // touch fallback for older browsers: map touch events to the same handlers
+  cardInner.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches.length) {
+      isDragging = true;
+      startX = e.touches[0].clientX;
+    }
+  }, {passive: true});
+  cardInner.addEventListener('touchmove', (e) => {
+    if (!isDragging || !e.touches || !e.touches.length) return;
+    currentX = e.touches[0].clientX - startX;
+    cardInner.style.transform = `translateX(${currentX}px) rotate(${currentX/20}deg)`;
+  }, {passive: true});
+  cardInner.addEventListener('touchend', async (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    const threshold = 120;
+    if (currentX > threshold) {
+      cardInner.style.transition = 'transform 300ms ease-out';
+      cardInner.style.transform = `translateX(1000px) rotate(30deg)`;
+      const res = await sendAction(currentUsername, 'like');
+      if (res && res.next) { renderCandidate(res.next); currentUsername = res.next.user.username; } else { currentUsername = await fetchNext(); }
+    } else if (currentX < -threshold) {
+      cardInner.style.transition = 'transform 300ms ease-out';
+      cardInner.style.transform = `translateX(-1000px) rotate(-30deg)`;
+      const res = await sendAction(currentUsername, 'dislike');
+      if (res && res.next) { renderCandidate(res.next); currentUsername = res.next.user.username; } else { currentUsername = await fetchNext(); }
+    } else {
+      cardInner.style.transition = 'transform 200ms ease-out';
+      cardInner.style.transform = '';
+    }
+    currentX = 0;
+  }, {passive: true});
         <img id="artist-image" src="" alt="Artist" class="w-48 h-48 rounded-md object-cover shadow-md hidden mx-auto mb-4">
         <h1 id="username" class="text-3xl font-bold tracking-tight"></h1>
         <p class="mt-2 text-sm text-gray-300">
           <span id="compatibility">Compatibility: N/A</span>
         </p>
-      </div>
+        </div>
 
       <div class="mx-6 sm:mx-10 mb-8 rounded-2xl border border-emerald-600/30 p-6 sm:p-8" id="bio-container">
         <p class="text-center text-gray-300 mb-6" id="bio"></p>
@@ -27,14 +64,14 @@
 
           <div class="col-span-1">
             <h3 class="text-center text-base font-semibold mb-3 text-gray-200 tracking-wide uppercase border-b border-gray-700 pb-2">Top Genres</h3>
-            <div class="rounded-xl border border-gray-700/70 p-4 sm:p-5 bg-[#0c1116]/60">
+            <div id="genres-container" class="rounded-xl border border-gray-700/70 p-4 sm:p-5 bg-[#0c1116]/60">
               <p id="genres" class="text-gray-200/90"></p>
             </div>
           </div>
 
           <div class="col-span-1">
             <h3 class="text-center text-base font-semibold mb-3 text-gray-200 tracking-wide uppercase border-b border-gray-700 pb-2">Top Tracks</h3>
-            <div class="rounded-xl border border-gray-700/70 p-4 sm:p-5 bg-[#0c1116]/60">
+            <div id="tracks-container" class="rounded-xl border border-gray-700/70 p-4 sm:p-5 bg-[#0c1116]/60">
               <ul id="top-tracks" class="list-disc list-inside space-y-1 text-gray-200/90"></ul>
             </div>
           </div>
@@ -46,7 +83,8 @@
         <button id="like" class="px-6 py-6 rounded-xl bg-gradient-to-r from-green-400 to-emerald-600 hover:scale-[1.02] transition-transform shadow-md">Like</button>
       </div>
 
-      <div id="no-more" class="hidden p-8 text-center text-gray-400">No more people to show right now.</div>
+  <div id="no-more" class="hidden p-8 text-center text-gray-400">No more people to show right now.</div>
+  </div> <!-- end #profile -->
       <div id="spinner" class="hidden mt-4 text-gray-400 text-center">Loading…</div>
     </div>
   </div>
@@ -58,6 +96,7 @@
 
 {% block scripts %}
 <script>
+document.addEventListener('DOMContentLoaded', function(){
 // Helpers
 function getCookie(name) {
   const v = `; ${document.cookie}`;
@@ -110,7 +149,12 @@ async function fetchNext() {
   artistsList.innerHTML = '';
   (data.top_artists||[]).forEach(a => {
     const li = document.createElement('li');
-    li.textContent = a.name || a;
+    // show rank, name and optional popularity
+    const parts = [];
+    if (a.rank) parts.push(`${a.rank}.`);
+    parts.push(a.name || 'Unknown');
+    if (a.popularity !== undefined && a.popularity !== null) parts.push(`(${a.popularity})`);
+    li.textContent = parts.join(' ');
     artistsList.appendChild(li);
   });
 
@@ -126,8 +170,9 @@ async function fetchNext() {
 
   // genres
   const genresEl = document.getElementById('genres');
-  if (data.genres && data.genres.length) {
-    genresEl.textContent = data.genres.join(', ');
+  const topGenres = data.top_genres || (data.genres ? data.genres.map((g,i)=>({rank:i+1,name:g})): []);
+  if (topGenres && topGenres.length) {
+    genresEl.textContent = topGenres.map(g => `${g.rank}. ${g.name}`).join('\n');
     document.getElementById('genres-container').classList.remove('hidden');
   } else {
     genresEl.textContent = '';
@@ -140,7 +185,9 @@ async function fetchNext() {
   if (data.top_tracks && data.top_tracks.length) {
     data.top_tracks.forEach(t => {
       const li = document.createElement('li');
-      li.textContent = `${t.name} — ${Array.isArray(t.artists)?t.artists.join(', '):t.artists}`;
+      const artists = Array.isArray(t.artists) ? t.artists.join(', ') : (t.artists || 'Unknown');
+      const pop = (t.popularity !== undefined && t.popularity !== null) ? ` (${t.popularity})` : '';
+      li.textContent = `${t.rank ? t.rank + '. ' : ''}${t.name} — ${artists}${pop}`;
       tracksList.appendChild(li);
     });
     document.getElementById('tracks-container').classList.remove('hidden');
@@ -252,53 +299,6 @@ let isDragging = false;
 let startX = 0;
 let currentX = 0;
 
-const cardInner = document.getElementById('card-inner');
-
-cardInner.addEventListener('pointerdown', (e) => {
-  isDragging = true;
-  startX = e.clientX;
-  cardInner.setPointerCapture(e.pointerId);
-});
-
-cardInner.addEventListener('pointermove', (e) => {
-  if (!isDragging) return;
-  currentX = e.clientX - startX;
-  cardInner.style.transform = `translateX(${currentX}px) rotate(${currentX/20}deg)`;
-});
-
-cardInner.addEventListener('pointerup', async (e) => {
-  isDragging = false;
-  const threshold = 120;
-  if (currentX > threshold) {
-    // like
-    cardInner.style.transition = 'transform 300ms ease-out';
-    cardInner.style.transform = `translateX(1000px) rotate(30deg)`;
-    const res = await sendAction(currentUsername, 'like');
-    if (res && res.next) {
-      renderCandidate(res.next);
-      currentUsername = res.next.user.username;
-    } else {
-      currentUsername = await fetchNext();
-    }
-  } else if (currentX < -threshold) {
-    // dislike
-    cardInner.style.transition = 'transform 300ms ease-out';
-    cardInner.style.transform = `translateX(-1000px) rotate(-30deg)`;
-    const res = await sendAction(currentUsername, 'dislike');
-    if (res && res.next) {
-      renderCandidate(res.next);
-      currentUsername = res.next.user.username;
-    } else {
-      currentUsername = await fetchNext();
-    }
-  } else {
-    // snap back
-    cardInner.style.transition = 'transform 200ms ease-out';
-    cardInner.style.transform = '';
-  }
-  currentX = 0;
-});
-
 // Keyboard support: left = dislike, right = like
 document.addEventListener('keydown', async (e) => {
   if (!currentUsername) return;
@@ -373,8 +373,110 @@ function setButtonsEnabled(enabled) {
 init = async () => { currentUsername = await fetchNext(); };
 init();
 // disable buttons initially until first candidate loaded
-
 setButtonsEnabled(false);
+
+// Pointer handling and event wiring relies on elements present in DOM; attach after DOM ready
+const cardInner = document.getElementById('card-inner');
+
+cardInner.addEventListener('pointerdown', (e) => {
+  isDragging = true;
+  startX = e.clientX;
+  cardInner.setPointerCapture(e.pointerId);
+});
+
+cardInner.addEventListener('pointermove', (e) => {
+  if (!isDragging) return;
+  currentX = e.clientX - startX;
+  cardInner.style.transform = `translateX(${currentX}px) rotate(${currentX/20}deg)`;
+});
+
+cardInner.addEventListener('pointerup', async (e) => {
+  isDragging = false;
+  const threshold = 120;
+  if (currentX > threshold) {
+    // like
+    cardInner.style.transition = 'transform 300ms ease-out';
+    cardInner.style.transform = `translateX(1000px) rotate(30deg)`;
+    const res = await sendAction(currentUsername, 'like');
+    if (res && res.next) {
+      renderCandidate(res.next);
+      currentUsername = res.next.user.username;
+    } else {
+      currentUsername = await fetchNext();
+    }
+  } else if (currentX < -threshold) {
+    // dislike
+    cardInner.style.transition = 'transform 300ms ease-out';
+    cardInner.style.transform = `translateX(-1000px) rotate(-30deg)`;
+    const res = await sendAction(currentUsername, 'dislike');
+    if (res && res.next) {
+      renderCandidate(res.next);
+      currentUsername = res.next.user.username;
+    } else {
+      currentUsername = await fetchNext();
+    }
+  } else {
+    // snap back
+    cardInner.style.transition = 'transform 200ms ease-out';
+    cardInner.style.transform = '';
+  }
+  currentX = 0;
+});
+
+// Buttons fallback
+document.getElementById('like').addEventListener('click', async () => {
+  if (!currentUsername) return;
+  cardInner.style.transition = 'transform 300ms ease-out';
+  cardInner.style.transform = `translateX(1000px) rotate(30deg)`;
+  const res = await sendAction(currentUsername, 'like');
+  if (res && res.next) {
+    renderCandidate(res.next);
+    currentUsername = res.next.user.username;
+  } else {
+    currentUsername = await fetchNext();
+  }
+});
+
+document.getElementById('dislike').addEventListener('click', async () => {
+  if (!currentUsername) return;
+  cardInner.style.transition = 'transform 300ms ease-out';
+  cardInner.style.transform = `translateX(-1000px) rotate(-30deg)`;
+  const res = await sendAction(currentUsername, 'dislike');
+  if (res && res.next) {
+    renderCandidate(res.next);
+    currentUsername = res.next.user.username;
+  } else {
+    currentUsername = await fetchNext();
+  }
+});
+
+// Keyboard support
+document.addEventListener('keydown', async (e) => {
+  if (!currentUsername) return;
+  if (e.key === 'ArrowRight') {
+    cardInner.style.transition = 'transform 300ms ease-out';
+    cardInner.style.transform = `translateX(1000px) rotate(30deg)`;
+    const res = await sendAction(currentUsername, 'like');
+    if (res && res.next) {
+      renderCandidate(res.next);
+      currentUsername = res.next.user.username;
+    } else {
+      currentUsername = await fetchNext();
+    }
+  } else if (e.key === 'ArrowLeft') {
+    cardInner.style.transition = 'transform 300ms ease-out';
+    cardInner.style.transform = `translateX(-1000px) rotate(-30deg)`;
+    const res = await sendAction(currentUsername, 'dislike');
+    if (res && res.next) {
+      renderCandidate(res.next);
+      currentUsername = res.next.user.username;
+    } else {
+      currentUsername = await fetchNext();
+    }
+  }
+});
+
+}); // end DOMContentLoaded
 </script>
 {% endblock %}
 

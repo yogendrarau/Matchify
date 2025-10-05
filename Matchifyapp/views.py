@@ -21,6 +21,7 @@ import base64
 from requests import post, get, Request
 import json
 from . import extras
+from .compatibility import get_music_taste_summary
 from .models import spotifyToken
 from spotipy import Spotify
 from .credentials import CLIENT_ID, CLIENT_SECRET, REDIRECT_URI
@@ -50,52 +51,61 @@ from django.views.decorators.http import require_POST
 
 def login(request):
     if request.method == "POST":
-        form = LoginForm(request, data=request.POST)
-        if form.is_valid():
-            identifier = form.cleaned_data["username"]
-            password = form.cleaned_data["password"]
-            
-            # Check if the identifier is an email or username
-            if '@' in identifier:
-                try:
-                    user = get_user_model().objects.get(email=identifier)
-                    username = user.username
-                except get_user_model().DoesNotExist:
+        try:
+            form = LoginForm(request, data=request.POST)
+            if form.is_valid():
+                identifier = form.cleaned_data["username"]
+                password = form.cleaned_data["password"]
+
+                # Check if the identifier is an email or username
+                if '@' in identifier:
+                    try:
+                        user = get_user_model().objects.get(email=identifier)
+                        username = user.username
+                    except get_user_model().DoesNotExist:
+                        return JsonResponse({
+                            'success': False,
+                            'messages': ["Invalid Credentials"],
+                            'reset_captcha': True  # Flag to reset CAPTCHA
+                        })
+                else:
+                    username = identifier
+
+                user = authenticate(request, username=username, password=password)
+
+                if user is not None:
+                    auth_login(request, user)
+                    return JsonResponse({'success': True, 'redirect_url': '/'})
+                else:
                     return JsonResponse({
                         'success': False,
                         'messages': ["Invalid Credentials"],
                         'reset_captcha': True  # Flag to reset CAPTCHA
                     })
             else:
-                username = identifier
-            
-            user = authenticate(request, username=username, password=password)
-
-            if user is not None:
-                auth_login(request, user)
-                return JsonResponse({'success': True, 'redirect_url': '/'})
-            else:
+                # Flatten form errors into a list of strings, excluding "__all__"
+                errors = []
+                for field, error_list in form.errors.items():
+                    if field == "__all__":
+                        # Handle non-field errors separately
+                        errors.extend(error_list)
+                    else:
+                        # Handle field-specific errors
+                        for error in error_list:
+                            errors.append(f"{field}: {error}")
                 return JsonResponse({
                     'success': False,
-                    'messages': ["Invalid Credentials"],
+                    'messages': errors,
                     'reset_captcha': True  # Flag to reset CAPTCHA
                 })
-        else:
-            # Flatten form errors into a list of strings, excluding "__all__"
-            errors = []
-            for field, error_list in form.errors.items():
-                if field == "__all__":
-                    # Handle non-field errors separately
-                    errors.extend(error_list)
-                else:
-                    # Handle field-specific errors
-                    for error in error_list:
-                        errors.append(f"{field}: {error}")
+        except Exception as exc:
+            logger.exception("Unhandled exception in login view")
+            # Return a JSON error so the client-side AJAX can present a friendly message
             return JsonResponse({
                 'success': False,
-                'messages': errors,
-                'reset_captcha': True  # Flag to reset CAPTCHA
-            })
+                'messages': ["An unexpected server error occurred. Please try again."],
+                'reset_captcha': True
+            }, status=500)
     else:
         form = LoginForm()
     return render(request, "login.html", {"form": form})
@@ -1340,13 +1350,79 @@ def api_swipe_next(request):
     """
     from .compatibility import get_music_compatibility
     User = get_user_model()
-    # choose a candidate (first non-self user)
-    candidate = User.objects.exclude(id=request.user.id).exclude(is_superuser=True).first()
+    # choose a candidate (first non-self user not already seen by this session)
+    seen = request.session.get('seen_swipes', []) or []
+    candidates_qs = list(User.objects.exclude(id=request.user.id).exclude(is_superuser=True).exclude(username__in=seen))
+    candidate = None
+    try:
+        if candidates_qs:
+            candidate = random.choice(candidates_qs)
+    except Exception:
+        # Fallback to deterministic selection if random fails
+        candidate = User.objects.exclude(id=request.user.id).exclude(is_superuser=True).exclude(username__in=seen).first()
     if not candidate:
         return JsonResponse({'error': 'no_candidate'}, status=404)
 
     # Attempt to compute compatibility; may return None
-    compat = get_music_compatibility(request.user, candidate) or {'total_score': 50.0, 'breakdown': {'artist_compatibility': 22.5, 'genre_compatibility': 15.0, 'track_compatibility': 12.5}, 'common_artists': [], 'common_genres': [], 'common_tracks': []}
+    compat = get_music_compatibility(request.user, candidate) or {
+        'total_score': 50.0,
+        'breakdown': {
+            'artist_compatibility': 22.5,
+            'genre_compatibility': 15.0,
+            'track_compatibility': 12.5
+        },
+        'common_artists': [],
+        'common_genres': [],
+        'common_tracks': []
+    }
+
+    # Prepare richer music taste summary for the candidate
+    try:
+        taste = get_music_taste_summary(candidate) or {}
+    except Exception:
+        taste = {}
+
+    # Build ranked lists (top 10) with safe fallbacks
+    top_artists = []
+    top_tracks = []
+    top_genres = []
+
+    # If compatibility returned common lists, we still prefer the candidate's own taste summary
+    if taste:
+        # taste['top_artists'] is list of dicts with name/popularity (from compatibility)
+        for i, a in enumerate(taste.get('top_artists', [])[:10]):
+            top_artists.append({
+                'rank': i + 1,
+                'name': a.get('name'),
+                'popularity': a.get('popularity') if isinstance(a.get('popularity'), (int, float)) else None,
+                'id': a.get('id') if isinstance(a, dict) and a.get('id') else None,
+                'image': a.get('image') if isinstance(a, dict) and a.get('image') else None
+            })
+
+        for i, t in enumerate(taste.get('top_tracks', [])[:10]):
+            top_tracks.append({
+                'rank': i + 1,
+                'name': t.get('name'),
+                'artists': t.get('artists', []),
+                'popularity': t.get('popularity') if isinstance(t.get('popularity'), (int, float)) else None,
+                'id': t.get('id') if isinstance(t, dict) and t.get('id') else None
+            })
+
+        for i, g in enumerate(taste.get('top_genres', [])[:10]):
+            # taste top_genres may be [{'genre': name, 'count': n}]
+            if isinstance(g, dict):
+                name = g.get('genre') or g.get('name')
+            else:
+                name = str(g)
+            top_genres.append({'rank': i + 1, 'name': name})
+    else:
+        # Fallback: attempt to use compatibility common lists (may be limited)
+        for i, a in enumerate(compat.get('common_artists', [])[:10]):
+            top_artists.append({'rank': i + 1, 'name': a.get('name') if isinstance(a, dict) else str(a), 'id': a.get('id') if isinstance(a, dict) else None})
+        for i, t in enumerate(compat.get('common_tracks', [])[:10]):
+            top_tracks.append({'rank': i + 1, 'name': t.get('name') if isinstance(t, dict) else str(t), 'artists': t.get('artists', []) if isinstance(t, dict) else []})
+        for i, g in enumerate(compat.get('common_genres', [])[:10]):
+            top_genres.append({'rank': i + 1, 'name': g})
 
     payload = {
         'user': {
@@ -1355,11 +1431,13 @@ def api_swipe_next(request):
             'avatar_initial': candidate.username[0].upper() if candidate.username else 'U',
             'is_spotify_connected': extras.is_spotify_authenticated(candidate)
         },
-        'top_artists': [],
-        'top_tracks': [],
-        'genres': [],
+        'top_artists': top_artists,
+        'top_tracks': top_tracks,
+        # include structured top_genres (ranked) instead of a simple list of names
+        'top_genres': top_genres,
         'compatibility': compat
     }
+
     return JsonResponse(payload)
 
 
@@ -1371,10 +1449,83 @@ def api_swipe_action(request):
     except Exception:
         data = request.POST or {}
 
+    User = get_user_model()
+    # Accept either frontend key `other_username` or `username` for compatibility
     action = data.get('action')
-    username = data.get('username')
+    username = data.get('other_username') or data.get('username')
     if not username or action not in ('like', 'dislike'):
         return JsonResponse({'success': False, 'error': 'invalid_payload'}, status=400)
 
-    # Here you'd persist the seen/like and possibly create friendships; just return success
-    return JsonResponse({'success': True, 'action': action, 'username': username})
+    # Persist the seen candidate in session so they won't be shown again
+    try:
+        seen = request.session.get('seen_swipes', []) or []
+        if username not in seen:
+            seen.append(username)
+            request.session['seen_swipes'] = seen
+            request.session.modified = True
+    except Exception:
+        # If session storage fails, proceed without blocking the user
+        pass
+
+    # TODO: persist likes to DB / create friendships if needed
+    # Attempt to provide the next candidate directly (avoid extra round-trip)
+    try:
+        seen = request.session.get('seen_swipes', []) or []
+        candidates_qs = list(User.objects.exclude(id=request.user.id).exclude(is_superuser=True).exclude(username__in=seen))
+        next_candidate = None
+        if candidates_qs:
+            next_candidate = random.choice(candidates_qs)
+    except Exception:
+        next_candidate = User.objects.exclude(id=request.user.id).exclude(is_superuser=True).exclude(username__in=seen).first()
+
+    if not next_candidate:
+        return JsonResponse({'success': True, 'action': action, 'username': username, 'next': None})
+
+    from .compatibility import get_music_compatibility, get_music_taste_summary
+    try:
+        compat = get_music_compatibility(request.user, next_candidate) or {}
+    except Exception:
+        compat = {}
+
+    try:
+        taste = get_music_taste_summary(next_candidate) or {}
+    except Exception:
+        taste = {}
+
+    top_artists = []
+    top_tracks = []
+    top_genres = []
+
+    if taste:
+        for i, a in enumerate(taste.get('top_artists', [])[:10]):
+            top_artists.append({'rank': i + 1, 'name': a.get('name'), 'popularity': a.get('popularity') if isinstance(a.get('popularity'), (int, float)) else None, 'id': a.get('id') if isinstance(a, dict) and a.get('id') else None, 'image': a.get('image') if isinstance(a, dict) and a.get('image') else None})
+        for i, t in enumerate(taste.get('top_tracks', [])[:10]):
+            top_tracks.append({'rank': i + 1, 'name': t.get('name'), 'artists': t.get('artists', []), 'popularity': t.get('popularity') if isinstance(t.get('popularity'), (int, float)) else None, 'id': t.get('id') if isinstance(t, dict) and t.get('id') else None})
+        for i, g in enumerate(taste.get('top_genres', [])[:10]):
+            if isinstance(g, dict):
+                name = g.get('genre') or g.get('name')
+            else:
+                name = str(g)
+            top_genres.append({'rank': i + 1, 'name': name})
+    else:
+        for i, a in enumerate(compat.get('common_artists', [])[:10]):
+            top_artists.append({'rank': i + 1, 'name': a.get('name') if isinstance(a, dict) else str(a), 'id': a.get('id') if isinstance(a, dict) else None})
+        for i, t in enumerate(compat.get('common_tracks', [])[:10]):
+            top_tracks.append({'rank': i + 1, 'name': t.get('name') if isinstance(t, dict) else str(t), 'artists': t.get('artists', []) if isinstance(t, dict) else []})
+        for i, g in enumerate(compat.get('common_genres', [])[:10]):
+            top_genres.append({'rank': i + 1, 'name': g})
+
+    payload = {
+        'user': {
+            'username': next_candidate.username,
+            'bio': getattr(getattr(next_candidate, 'profile', None), 'bio', '') or '',
+            'avatar_initial': next_candidate.username[0].upper() if next_candidate.username else 'U',
+            'is_spotify_connected': extras.is_spotify_authenticated(next_candidate)
+        },
+        'top_artists': top_artists,
+        'top_tracks': top_tracks,
+        'top_genres': top_genres,
+        'compatibility': compat
+    }
+
+    return JsonResponse({'success': True, 'action': action, 'username': username, 'next': payload})
