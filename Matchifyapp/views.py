@@ -799,6 +799,46 @@ def profile(request, username):
 
 
 @login_required
+def upload_profile_image(request):
+    """Handle AJAX profile image uploads for the current user."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=400)
+
+    form = None
+    try:
+        from .forms import ProfileImageForm
+        form = ProfileImageForm(request.POST, request.FILES)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': 'Server misconfigured'}, status=500)
+
+    if not form.is_valid():
+        return JsonResponse({'success': False, 'error': 'invalid_image'}, status=400)
+
+    image = form.cleaned_data['image']
+
+    # Ensure Profile exists
+    try:
+        from .models import Profile
+        profile_obj = Profile.objects.filter(user=request.user).first()
+        if not profile_obj:
+            profile_obj = Profile.objects.create(user=request.user)
+
+        # Assign and save image
+        profile_obj.image = image
+        profile_obj.save()
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    # Build URL for response
+    try:
+        image_url = profile_obj.image.url if profile_obj.image else ''
+    except Exception:
+        image_url = ''
+
+    return JsonResponse({'success': True, 'image_url': image_url})
+
+
+@login_required
 def edit_bio(request):
     if request.method != 'POST':
         return redirect('home')

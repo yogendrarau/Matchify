@@ -6,7 +6,9 @@ from django.contrib.auth.models import User
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     bio = models.TextField(blank=True, null=True)
-    # Avatar is stored in a separate ProfileAvatar model to avoid altering existing DB state directly.
+    # Profile image field for user avatars. Use db_column 'avatar' to match the
+    # existing database column (some environments already have an 'avatar' column).
+    image = models.ImageField(upload_to='profile_images/', blank=True, null=True, db_column='avatar')
 
     def __str__(self):
         return f"Profile({self.user.username})"
@@ -101,9 +103,4 @@ class Reaction(models.Model):
         return f"Reaction({self.user.username} -> {self.post.id}: {self.value})"
 
 
-class ProfileAvatar(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile_avatar')
-    avatar = models.FileField(upload_to='profile_avatars/', blank=True, null=True)
-
-    def __str__(self):
-        return f"ProfileAvatar({self.user.username})"
+ 

@@ -12,8 +12,30 @@
 
     <div class="max-w-3xl w-full p-6 rounded-lg shadow-lg">
         <div class="flex items-center space-x-6 mb-4">
-            <div class="w-24 h-24 bg-gray-700 rounded-full flex items-center justify-center text-3xl text-white">
-                {{ user_data.user.username|slice:":1"|upper }}
+            <div class="relative group">
+                <!-- Avatar container -->
+                <div id="avatar-wrap" class="w-24 h-24 bg-gray-700 rounded-full overflow-hidden flex items-center justify-center text-3xl text-white">
+                    {% if user_data.profile_exists and user_data.user.profile.image %}
+                        <img id="profile-avatar" src="{{ user_data.user.profile.image.url }}" alt="avatar" class="w-24 h-24 object-cover" />
+                    {% else %}
+                        <div id="profile-avatar-initial" class="w-24 h-24 flex items-center justify-center text-3xl text-white">{{ user_data.user.username|slice:":1"|upper }}</div>
+                        <img id="profile-avatar" src="" alt="avatar" class="w-24 h-24 object-cover hidden" />
+                    {% endif %}
+                </div>
+
+                <!-- Transparent camera overlay shown on hover for current user -->
+                {% if user_data.is_current_user %}
+                <button id="change-avatar-btn" title="Change profile picture" class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity rounded-full" style="border:none">
+                    <!-- camera svg -->
+                    <svg id="camera-icon" xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 7h2l2-3h8l2 3h2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path>
+                        <circle cx="12" cy="13" r="3"></circle>
+                    </svg>
+                </button>
+                {% endif %}
+
+                <!-- Hidden file input -->
+                <input id="profile-image-input" type="file" accept="image/*" class="hidden" />
             </div>
             <div>
                 <h2 class="text-2xl font-semibold text-white">{{ user_data.user.username }} {% if user_data.is_current_user %}(You){% endif %}</h2>
@@ -182,6 +204,71 @@ document.addEventListener('DOMContentLoaded', function () {
         viewAll.addEventListener('click', function () {
             if (spinner) spinner.classList.remove('hidden');
         });
+    }
+});
+</script>
+<script>
+// Profile image upload handler
+document.addEventListener('DOMContentLoaded', function () {
+    try {
+        const changeBtn = document.getElementById('change-avatar-btn');
+        const fileInput = document.getElementById('profile-image-input');
+        const avatarImg = document.getElementById('profile-avatar');
+        const avatarInitial = document.getElementById('profile-avatar-initial');
+
+        function getCsrfToken() {
+            const cookie = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='));
+            return cookie ? cookie.split('=')[1] : '';
+        }
+
+        if (changeBtn && fileInput) {
+            changeBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', function (e) {
+                const file = fileInput.files && fileInput.files[0];
+                if (!file) return;
+
+                // Basic client-side validation
+                if (!file.type.startsWith('image/')) {
+                    alert('Please select an image file.');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const csrftoken = getCsrfToken();
+
+                fetch('{% url "upload_profile_image" %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrftoken
+                    },
+                    body: formData
+                }).then(r => r.json()).then(data => {
+                    if (data.success && data.image_url) {
+                        if (avatarImg) {
+                            avatarImg.src = data.image_url;
+                            avatarImg.classList.remove('hidden');
+                        }
+                        if (avatarInitial) avatarInitial.classList.add('hidden');
+                    } else {
+                        alert('Failed to upload image.');
+                        console.error('Upload error', data);
+                    }
+                }).catch(err => {
+                    console.error('Upload failed', err);
+                    alert('Upload failed.');
+                }).finally(() => {
+                    fileInput.value = '';
+                });
+            });
+        }
+    } catch (err) {
+        console.error('Error wiring profile image upload', err);
     }
 });
 </script>
