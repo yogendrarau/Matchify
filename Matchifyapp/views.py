@@ -708,14 +708,16 @@ def accept_friend_request(request, username):
     
     # Delete the request
     friend_request.delete()
-    return redirect('profile')
+    # Redirect to the profile of the user who sent the request
+    return redirect('profile', username=from_user.username)
 
 @login_required
 def reject_friend_request(request, username):
     from_user = get_object_or_404(get_user_model(), username=username)
     friend_request = get_object_or_404(FriendRequest, from_user=from_user, to_user=request.user)
     friend_request.delete()
-    return redirect('profile')
+    # Redirect back to the profile of the user who sent the request
+    return redirect('profile', username=from_user.username)
 
 @login_required
 def remove_friend(request, username):
@@ -724,7 +726,8 @@ def remove_friend(request, username):
         Q(user1=request.user, user2=friend) | 
         Q(user1=friend, user2=request.user)
     ).delete()
-    return redirect('profile')
+    # After removing, redirect to the former friend's profile
+    return redirect('profile', username=friend.username)
 
 @login_required
 def profile(request, username):
