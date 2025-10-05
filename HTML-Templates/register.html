@@ -54,6 +54,15 @@
         document.getElementById('registerForm').addEventListener('submit', async (event) => {
             event.preventDefault();
             const form=event.target;
+            // Client-side validation: require .edu email
+            const emailField = form.querySelector('[name="email"]');
+            const emailVal = (emailField && emailField.value || '').trim();
+            const messages = document.getElementById('messages');
+            messages.innerHTML = '';
+            if (!emailVal.toLowerCase().endsWith('.edu')) {
+                const d=document.createElement('div'); d.className='glass border border-red-500/40 text-red-300 rounded-xl px-3 py-2 mb-2'; d.textContent='You must sign up with a .edu email address.'; messages.appendChild(d);
+                return;
+            }
             const formData=new FormData(form);
             const btn=form.querySelector('button[type="submit"]');
             btn.disabled=true; btn.textContent='Registering...';
