@@ -660,19 +660,43 @@ def send_friend_request(request, username):
     
     # Check if friend request already exists
     if FriendRequest.objects.filter(from_user=request.user, to_user=to_user).exists():
-        return JsonResponse({
-            "success": False,
-            "error": "Friend request already exists"
-        }, status=400)
+        # If this was a normal form POST (not AJAX), redirect back to profile with a message
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.is_ajax():
+            return JsonResponse({
+                "success": False,
+                "error": "Friend request already exists"
+            }, status=400)
+        else:
+            # Use Django messages to inform the user (optional) and redirect back
+            try:
+                messages.info(request, "Friend request already exists")
+            except Exception:
+                pass
+            return redirect('profile', username=to_user.username)
     
     try:
         FriendRequest.objects.create(from_user=request.user, to_user=to_user)
-        return JsonResponse({"success": True})
+        # If this was an AJAX request, return JSON; otherwise redirect back to profile.
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.is_ajax():
+            return JsonResponse({"success": True})
+        else:
+            try:
+                messages.success(request, "Friend request sent.")
+            except Exception:
+                pass
+            return redirect('profile', username=to_user.username)
     except Exception as e:
-        return JsonResponse({
-            "success": False,
-            "error": str(e)
-        }, status=500)
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.is_ajax():
+            return JsonResponse({
+                "success": False,
+                "error": str(e)
+            }, status=500)
+        else:
+            try:
+                messages.error(request, f"Could not send friend request: {e}")
+            except Exception:
+                pass
+            return redirect('profile', username=to_user.username)
 
 @login_required
 def accept_friend_request(request, username):
