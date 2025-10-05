@@ -21,29 +21,8 @@
     {% block head %}{% endblock %}
 </head>
 <body class="bg-app text-white min-h-screen">
-    {% if request.user.is_authenticated %}
-    <!-- Site-wide Menu Button and Dropdown (Top Right) -->
-    <div class="fixed top-4 right-4 z-60">
-      <div class="relative">
-        <!-- Circle Menu Button -->
-        <button id="site-menu-button" class="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 focus:outline-none" aria-expanded="false" aria-controls="site-dropdownMenu">
-            <span class="text-xl">☰</span>
-        </button>
-
-        <!-- Dropdown Menu -->
-        <div id="site-dropdownMenu" role="menu" aria-hidden="true" class="hidden absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg py-2 z-60 pointer-events-auto">
-            <!-- My Profile -->
-            <a id="site-open-profile-link" href="{% url 'profile' request.user.username %}" class="w-full block text-left px-4 py-2 hover:bg-gray-700 text-white">My Profile</a>
-            <!-- Friends -->
-            <a id="site-open-friends-link" href="{% url 'friends' %}" class="w-full block text-left px-4 py-2 hover:bg-gray-700 text-white">Friends</a>
-            <!-- Logout -->
-            <form action="{% url 'logout' %}" method="post" class="border-t border-gray-700">
-                {% csrf_token %}
-                <button type="submit" class="w-full text-left px-4 py-2 hover:bg-gray-700 text-white">Logout</button>
-            </form>
-        </div>
-      </div>
-    </div>
+    {% if request.path == '/swipe/' %}
+        <a id="back-home-button" href="{% url 'home' %}" class="fixed top-4 right-4 btn px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-black shadow">← Home</a>
     {% endif %}
 
     {% block content %}{% endblock %}

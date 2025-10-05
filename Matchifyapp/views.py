@@ -22,6 +22,7 @@ from requests import post, get, Request
 import json
 from . import extras
 from .compatibility import get_music_taste_summary
+from .compatibility import get_music_taste_summary
 from .models import spotifyToken
 from spotipy import Spotify
 from .credentials import CLIENT_ID, CLIENT_SECRET, REDIRECT_URI
@@ -1656,6 +1657,9 @@ def api_swipe_next(request):
         },
         'top_artists': top_artists,
         'top_tracks': top_tracks,
+        'genres': [g['name'] for g in top_genres],
+        'top_artists': top_artists,
+        'top_tracks': top_tracks,
         # include structured top_genres (ranked) instead of a simple list of names
         'top_genres': top_genres,
         'compatibility': compat
@@ -1747,7 +1751,7 @@ def api_swipe_action(request):
         },
         'top_artists': top_artists,
         'top_tracks': top_tracks,
-        'top_genres': top_genres,
+        'genres': [g['name'] for g in top_genres],
         'compatibility': compat
     }
 
