@@ -6,7 +6,8 @@
     <div class="relative rounded-3xl border border-gray-700/70 bg-[#0e1216]/80 backdrop-blur-md shadow-2xl overflow-hidden">
       <div class="absolute inset-x-0 -top-10 h-24 bg-gradient-to-b from-emerald-500/20 to-transparent blur-2xl" aria-hidden></div>
 
-      <div id="card-inner" class="px-6 sm:px-10 pt-8 pb-4 text-center">
+  <div id="profile">
+  <div id="card-inner" class="px-6 sm:px-10 pt-8 pb-4 text-center">
         <img id="artist-image" src="" alt="Artist" class="w-48 h-48 rounded-md object-cover shadow-md hidden mx-auto mb-4">
         <h1 id="username" class="text-3xl font-bold tracking-tight"></h1>
         <p class="mt-2 text-sm text-gray-300">
@@ -14,7 +15,7 @@
         </p>
       </div>
 
-      <div class="mx-6 sm:mx-10 mb-8 rounded-2xl border border-emerald-600/30 p-6 sm:p-8" id="bio-container">
+  <div class="mx-6 sm:mx-10 mb-8 rounded-2xl border border-emerald-600/30 p-6 sm:p-8" id="bio-container">
         <p class="text-center text-gray-300 mb-6" id="bio"></p>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -27,14 +28,14 @@
 
           <div class="col-span-1">
             <h3 class="text-center text-base font-semibold mb-3 text-gray-200 tracking-wide uppercase border-b border-gray-700 pb-2">Top Genres</h3>
-            <div class="rounded-xl border border-gray-700/70 p-4 sm:p-5 bg-[#0c1116]/60">
+            <div id="genres-container" class="rounded-xl border border-gray-700/70 p-4 sm:p-5 bg-[#0c1116]/60">
               <p id="genres" class="text-gray-200/90"></p>
             </div>
           </div>
 
           <div class="col-span-1">
             <h3 class="text-center text-base font-semibold mb-3 text-gray-200 tracking-wide uppercase border-b border-gray-700 pb-2">Top Tracks</h3>
-            <div class="rounded-xl border border-gray-700/70 p-4 sm:p-5 bg-[#0c1116]/60">
+            <div id="tracks-container" class="rounded-xl border border-gray-700/70 p-4 sm:p-5 bg-[#0c1116]/60">
               <ul id="top-tracks" class="list-disc list-inside space-y-1 text-gray-200/90"></ul>
             </div>
           </div>
@@ -46,7 +47,8 @@
         <button id="like" class="px-6 py-6 rounded-xl bg-gradient-to-r from-green-400 to-emerald-600 hover:scale-[1.02] transition-transform shadow-md">Like</button>
       </div>
 
-      <div id="no-more" class="hidden p-8 text-center text-gray-400">No more people to show right now.</div>
+  <div id="no-more" class="hidden p-8 text-center text-gray-400">No more people to show right now.</div>
+  </div> <!-- #profile -->
       <div id="spinner" class="hidden mt-4 text-gray-400 text-center">Loading…</div>
     </div>
   </div>
