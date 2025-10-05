@@ -6,6 +6,9 @@ from django.contrib.auth.models import User
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     bio = models.TextField(blank=True, null=True)
+    # Profile image field for user avatars. Use db_column 'avatar' to match the
+    # existing database column (some environments already have 'avatar' column).
+    image = models.ImageField(upload_to='profile_images/', blank=True, null=True, db_column='avatar')
 
     def __str__(self):
         return f"Profile({self.user.username})"

@@ -43,3 +43,7 @@ class PostForm(forms.ModelForm):
 
     from django.forms import ClearableFileInput
     image = forms.FileField(required=False, widget=ClearableFileInput(attrs={'class': 'hidden', 'id': 'post-image-input'}))
+
+
+class ProfileImageForm(forms.Form):
+    image = forms.ImageField(required=True)

@@ -36,4 +36,5 @@ urlpatterns = [
     path('swipe/', views.swipe, name='swipe'),
     path('api/swipe/next', views.api_swipe_next, name='api_swipe_next'),
     path('api/swipe/action', views.api_swipe_action, name='api_swipe_action'),
+    path('upload-profile-image/', views.upload_profile_image, name='upload_profile_image'),
 ]
