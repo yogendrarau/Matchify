@@ -39,6 +39,12 @@ from django.http import HttpResponseForbidden
 logger = logging.getLogger(__name__)
 
 # Create your views here.
+# Very early stubs to ensure URL importability even if later code raises during reload
+def send_message(request, username):
+    return JsonResponse({'success': False, 'error': 'send_message not available yet'}, status=500)
+
+def get_messages(request, username):
+    return JsonResponse({'success': False, 'error': 'get_messages not available yet'}, status=500)
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.contrib.auth import authenticate, login as auth_login
@@ -47,6 +53,15 @@ from .models import Comment, Post
 from .forms import CommentForm
 from .models import Reaction
 from django.views.decorators.http import require_POST
+
+# Early stubs: ensure these names exist even if later code raises during import.
+def send_message(request, username):
+    """Stub - real implementation is defined later in this file."""
+    return JsonResponse({'success': False, 'error': 'send_message not available'}, status=500)
+
+def get_messages(request, username):
+    """Stub - real implementation is defined later in this file."""
+    return JsonResponse({'success': False, 'error': 'get_messages not available'}, status=500)
 
 
 
@@ -1029,6 +1044,142 @@ def messages_index(request):
 
 
 @login_required
+def chat(request, username):
+    """Render one-to-one chat page between request.user and username.
+
+    Builds a small list of dicts for the template so initial server render
+    can include parsed track payloads and absolute image URLs.
+    """
+    other = get_object_or_404(get_user_model(), username=username)
+    # allow chat if friends or viewing own chat
+    is_friend = Friendship.objects.filter(
+        Q(user1=request.user, user2=other) | Q(user1=other, user2=request.user)
+    ).exists()
+    if not is_friend and request.user != other:
+        return HttpResponseForbidden('Not friends')
+
+    from .models import Message
+    chat_qs = Message.objects.filter(
+        (Q(sender=request.user) & Q(recipient=other)) | (Q(sender=other) & Q(recipient=request.user))
+    ).select_related('sender', 'recipient').order_by('created_at')
+
+    messages_for_template = []
+    import json as _json
+    for m in chat_qs:
+        img_url = None
+        try:
+            if m.image:
+                img_url = m.image.url
+        except Exception:
+            img_url = None
+        track_obj = None
+        try:
+            parsed = _json.loads(m.content) if m.content else None
+            if isinstance(parsed, dict) and parsed.get('id') and parsed.get('name'):
+                track_obj = parsed
+        except Exception:
+            track_obj = None
+
+        messages_for_template.append({
+            'id': m.id,
+            'sender': m.sender.username,
+            'content': m.content,
+            'created_at': m.created_at,
+            'image_url': img_url,
+            'track': track_obj,
+        })
+
+    return render(request, 'chat.html', {'friend': other, 'chat_messages': messages_for_template})
+
+
+
+@login_required
+def send_message(request, username):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=400)
+    to_user = get_object_or_404(get_user_model(), username=username)
+    if not Friendship.objects.filter(
+        Q(user1=request.user, user2=to_user) | Q(user1=to_user, user2=request.user)
+    ).exists() and request.user != to_user:
+        return JsonResponse({'success': False, 'error': 'Not friends'}, status=403)
+
+    # Accept text content, uploaded image, or track_json
+    content = (request.POST.get('content') or request.POST.get('message') or '')
+    content = content.strip()
+    uploaded_image = request.FILES.get('image')
+    track_json = request.POST.get('track_json')
+    if track_json:
+        content = track_json
+
+    if not content and not uploaded_image:
+        return JsonResponse({'success': False, 'error': 'empty'}, status=400)
+
+    from .models import Message
+    if uploaded_image:
+        m = Message.objects.create(sender=request.user, recipient=to_user, content=content or '', image=uploaded_image)
+    else:
+        m = Message.objects.create(sender=request.user, recipient=to_user, content=content or '')
+
+    image_url = None
+    try:
+        if m.image:
+            image_url = request.build_absolute_uri(m.image.url)
+    except Exception:
+        image_url = None
+
+    return JsonResponse({'success': True, 'message_id': m.id, 'created_at': m.created_at.isoformat(), 'image_url': image_url})
+
+
+@login_required
+def get_messages(request, username):
+    other = get_object_or_404(get_user_model(), username=username)
+    if not Friendship.objects.filter(
+        Q(user1=request.user, user2=other) | Q(user1=other, user2=request.user)
+    ).exists() and request.user != other:
+        return JsonResponse({'success': False, 'error': 'Not friends'}, status=403)
+    after = request.GET.get('after')
+    from .models import Message
+    qs = Message.objects.filter(
+        (Q(sender=request.user) & Q(recipient=other)) | (Q(sender=other) & Q(recipient=request.user))
+    ).order_by('created_at')
+    if after:
+        try:
+            from django.utils.dateparse import parse_datetime
+            dt = parse_datetime(after)
+            if dt:
+                qs = qs.filter(created_at__gt=dt)
+        except Exception:
+            pass
+    msgs = []
+    for m in qs:
+        img = None
+        try:
+            if m.image:
+                img = request.build_absolute_uri(m.image.url)
+        except Exception:
+            img = None
+        track_obj = None
+        try:
+            import json as _json
+            parsed = _json.loads(m.content) if m.content else None
+            if isinstance(parsed, dict) and parsed.get('id') and parsed.get('name'):
+                track_obj = parsed
+        except Exception:
+            track_obj = None
+
+        msgs.append({
+            'id': m.id,
+            'sender': m.sender.username,
+            'recipient': m.recipient.username,
+            'content': m.content,
+            'created_at': m.created_at.isoformat(),
+            'image_url': img,
+            'track': track_obj
+        })
+    return JsonResponse({'success': True, 'messages': msgs})
+
+
+@login_required
 def leaderboard_page(request):
     """Render a standalone leaderboard page for an artist. Accepts artist_id or artist_name as GET params.
     Reuses leaderboard_results logic to compute results and passes them to a template.
@@ -1357,6 +1508,51 @@ def add_comment(request, post_id):
                 return redirect(reverse('discussion') + f'#comment-{comment.id}')
             except Exception:
                 return redirect('discussion')
+    return redirect('discussion')
+
+
+@login_required
+def delete_post(request, post_id):
+    """Allow the author of a post (or staff) to delete it."""
+    if request.method != 'POST':
+        return redirect('discussion')
+    from .models import Post
+    post = get_object_or_404(Post, id=post_id)
+    # Only allow author or staff to delete
+    if request.user != post.author and not request.user.is_staff:
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'forbidden'}, status=403)
+        return redirect('discussion')
+    try:
+        post.delete()
+    except Exception:
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'delete_failed'}, status=500)
+        return redirect('discussion')
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({'success': True})
+    return redirect('discussion')
+
+
+@login_required
+def delete_comment(request, comment_id):
+    """Allow the author of a comment (or staff) to delete it."""
+    if request.method != 'POST':
+        return redirect('discussion')
+    from .models import Comment
+    comment = get_object_or_404(Comment, id=comment_id)
+    if request.user != comment.author and not request.user.is_staff:
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'forbidden'}, status=403)
+        return redirect('discussion')
+    try:
+        comment.delete()
+    except Exception:
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'success': False, 'error': 'delete_failed'}, status=500)
+        return redirect('discussion')
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({'success': True})
     return redirect('discussion')
 
 
@@ -1743,6 +1939,23 @@ def api_swipe_action(request):
 
     if not next_candidate:
         return JsonResponse({'success': True, 'action': action, 'username': username, 'next': None})
+
+    # If the user 'liked' this candidate, create a FriendRequest if one doesn't already exist
+    if action == 'like':
+        try:
+            to_user = get_user_model().objects.filter(username=username).first()
+            if to_user and to_user != request.user:
+                # Don't create if already friends
+                already_friends = Friendship.objects.filter(
+                    Q(user1=request.user, user2=to_user) | Q(user1=to_user, user2=request.user)
+                ).exists()
+                if not already_friends:
+                    # Don't create duplicate friend requests
+                    if not FriendRequest.objects.filter(from_user=request.user, to_user=to_user).exists():
+                        FriendRequest.objects.create(from_user=request.user, to_user=to_user)
+        except Exception:
+            # Ignore failures here; the swipe action should still succeed even if friend request creation fails
+            pass
 
     from .compatibility import get_music_compatibility, get_music_taste_summary
     try:

@@ -46,6 +46,8 @@ urlpatterns = [
     path('chat/<str:username>/', views.chat, name='chat'),
     path('chat/<str:username>/send/', views.send_message, name='send_message'),
     path('chat/<str:username>/poll/', views.get_messages, name='get_messages'),
+    path('discussion/delete_post/<int:post_id>/', views.delete_post, name='delete_post'),
+    path('discussion/delete_comment/<int:comment_id>/', views.delete_comment, name='delete_comment'),
     # Swipe / discovery routes
     path('swipe/', views.swipe, name='swipe'),
     path('api/swipe/next', views.api_swipe_next, name='api_swipe_next'),

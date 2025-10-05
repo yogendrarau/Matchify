@@ -36,6 +36,8 @@
 
         <!-- Dropdown Menu -->
             <div id="site-dropdownMenu" role="menu" aria-hidden="true" class="hidden absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg py-2 z-60 pointer-events-auto">
+            <!-- Home -->
+            <a id="site-open-home-link" href="{% url 'home' %}" class="w-full block text-left px-4 py-2 hover:bg-gray-700 text-white">Home</a>
             <!-- My Profile -->
             <a id="site-open-profile-link" href="{% url 'profile' request.user.username %}" class="w-full block text-left px-4 py-2 hover:bg-gray-700 text-white">My Profile</a>
             <!-- Friends -->

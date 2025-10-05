@@ -10,6 +10,16 @@
       <a href="{% url 'messages' %}" class="text-sm text-green-400 hover:underline">Messages →</a>
     </div>
 
+    <!-- Quick search to send friend request by username -->
+    <div class="mb-6">
+      <form id="friend-search-form" class="flex items-center space-x-3 max-w-md">
+        {% csrf_token %}
+        <input id="friend-search-input" type="text" placeholder="Search username to add" class="w-full p-3 rounded bg-gray-900 text-white" aria-label="Search username" />
+        <button id="friend-search-btn" type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded">Send</button>
+      </form>
+      <div id="friend-search-feedback" class="text-sm mt-2 text-yellow-400" style="display:none"></div>
+    </div>
+
     <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
       <!-- Current Friends -->
       <section class="bg-[#0f1113] border border-gray-800 p-6 rounded-lg shadow-md min-h-[12rem]">
@@ -105,6 +115,74 @@
   </div>
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const form = document.getElementById('friend-search-form');
+  const input = document.getElementById('friend-search-input');
+  const feedback = document.getElementById('friend-search-feedback');
+
+  if (!form || !input) return;
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const username = input.value.trim();
+    if (!username) {
+      feedback.style.display = 'block';
+      feedback.textContent = 'Please enter a username.';
+      return;
+    }
+
+    feedback.style.display = 'block';
+    feedback.textContent = 'Searching...';
+
+    try {
+      const csrf = (function(){ const c=document.cookie.split(';').map(x=>x.trim()).find(x=>x.startsWith('csrftoken=')); return c ? c.split('=')[1] : ''; })();
+      const resp = await fetch(`/send-friend-request/${encodeURIComponent(username)}`, {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRFToken': csrf
+        },
+        credentials: 'same-origin'
+      });
+
+      const text = await resp.text();
+      let data = null;
+      try { data = JSON.parse(text); } catch (err) { data = null; }
+
+      if (resp.ok && data && data.success) {
+        feedback.style.color = 'lightgreen';
+        feedback.textContent = `Friend request sent to ${username}!`;
+        // update sent requests panel by reloading the page to keep things simple
+        setTimeout(() => window.location.reload(), 700);
+        return;
+      }
+
+      // If server returned JSON with an error, show it. Otherwise show fallback.
+      if (data && data.error) {
+        feedback.style.color = '#f59e0b';
+        feedback.textContent = data.error;
+      } else if (resp.status === 404) {
+        feedback.style.color = '#f87171';
+        feedback.textContent = 'User not found.';
+      } else if (resp.status === 400) {
+        feedback.style.color = '#f59e0b';
+        feedback.textContent = data && data.error ? data.error : 'Bad request.';
+      } else {
+        feedback.style.color = '#f59e0b';
+        feedback.textContent = 'Could not send friend request.';
+      }
+    } catch (err) {
+      console.error('Send friend request error', err);
+      feedback.style.color = '#f87171';
+      feedback.textContent = 'Network error while sending friend request.';
+    }
+  });
+});
+</script>
 {% endblock %}
 
 {% block styles %}
