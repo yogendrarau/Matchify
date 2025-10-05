@@ -14,6 +14,13 @@ class RegisterForm(forms.ModelForm):
     passwordrepeat = forms.CharField(widget=forms.PasswordInput, label="Repeat Password")
     captcha = ReCaptchaField()
 
+    def clean_email(self):
+        email = self.cleaned_data.get('email', '').strip()
+        # Basic validation: must end with .edu (case-insensitive)
+        if not email.lower().endswith('.edu'):
+            raise forms.ValidationError('You must sign up with a .edu email address.')
+        return email
+
     class Meta:
         model = get_user_model()
         fields = ['username', 'email', 'password', 'passwordrepeat']

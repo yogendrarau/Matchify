@@ -299,6 +299,10 @@ def register(request):
             if get_user_model().objects.filter(email=email).exists():
                 return JsonResponse({'success': False, 'reset_captcha': True, 'messages': ['Email is already used.']})
 
+            # Enforce .edu email addresses only
+            if not email.lower().endswith('.edu'):
+                return JsonResponse({'success': False, 'reset_captcha': True, 'messages': ['You must sign up with a .edu email address.']})
+
             # Check if username is already taken
             if get_user_model().objects.filter(username=username).exists():
                 return JsonResponse({'success': False, 'reset_captcha': True, 'messages': ['Username is already taken.']})
