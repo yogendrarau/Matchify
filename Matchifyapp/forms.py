@@ -45,10 +45,9 @@ class PostForm(forms.ModelForm):
     image = forms.FileField(required=False, widget=ClearableFileInput(attrs={'class': 'hidden', 'id': 'post-image-input'}))
 
 
-<<<<<<< HEAD
 class ProfileImageForm(forms.Form):
     image = forms.ImageField(required=True)
-=======
+
 from .models import Comment
 
 
@@ -66,4 +65,3 @@ class CommentForm(forms.ModelForm):
         labels = {
             'content': ''
         }
->>>>>>> 0d505461052580a932e0b241da1e81a2c132238e
