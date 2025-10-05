@@ -4,13 +4,12 @@
 
 {% block content %}
 <div class="bg-black min-h-screen flex flex-col items-center justify-center py-12">
-    <!-- Return to Home Button -->
+    <!-- Back to Discussions Button -->
     <a href="{% url 'home' %}" 
        class="absolute top-5 left-5 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-md transition-transform transform hover:scale-105">
-        ← Return to Home
+        ← Back
     </a>
 
-    {% if user_data.is_friend or user_data.is_current_user %}
     <div class="max-w-3xl w-full p-6 rounded-lg shadow-lg">
         <div class="flex items-center space-x-6 mb-4">
             <div class="w-24 h-24 bg-gray-700 rounded-full flex items-center justify-center text-3xl text-white">
@@ -164,13 +163,7 @@
 
         <!-- Bottom action buttons removed as requested -->
     </div>
-    {% else %}
-    <div class="max-w-md p-6 rounded-lg shadow-lg bg-red-500 text-white">
-        <h2 class="text-2xl font-semibold mb-2">Access Denied</h2>
-        <p>You can only view the profile of a friend.</p>
-        <a href="{% url 'home' %}" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full mt-4">Return to Home</a>
-    </div>
-    {% endif %}
+    
 </div>
 {% endblock %}
 
