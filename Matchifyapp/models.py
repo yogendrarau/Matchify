@@ -9,6 +9,9 @@ class Profile(models.Model):
     # Profile image field for user avatars. Use db_column 'avatar' to match the
     # existing database column (some environments already have an 'avatar' column).
     image = models.ImageField(upload_to='profile_images/', blank=True, null=True, db_column='avatar')
+    # Optional timezone string for the user (e.g. 'America/New_York').
+    # Add a migration after updating this file: `python manage.py makemigrations` then `migrate`.
+    timezone = models.CharField(max_length=64, blank=True, null=True)
     # Optional JSON blob to store a small representation of the user's chosen display song
     # Example: {"id": "spotify:track:...", "name": "Song Name", "artist": "Artist", "album_art": "https://..."}
     display_song = models.JSONField(blank=True, null=True)

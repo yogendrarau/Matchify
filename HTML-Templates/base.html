@@ -21,9 +21,6 @@
     {% block head %}{% endblock %}
 </head>
 <body class="bg-app text-white min-h-screen">
-    {% if request.path == '/swipe/' %}
-        <a id="back-home-button" href="{% url 'home' %}" class="fixed top-4 right-4 btn px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-black shadow">← Home</a>
-    {% endif %}
     {% if request.user.is_authenticated %}
     <!-- Site-wide Menu Button and Dropdown (Top Right) -->
         <div class="fixed top-4 right-4 z-60">
