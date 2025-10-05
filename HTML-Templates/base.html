@@ -1,17 +1,28 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>{% block title %}Matchify{% endblock %}</title>
-    <!-- Tailwind CSS (use CDN script to match home.html) -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .bg-app{background-image:linear-gradient(to bottom,#000,#0c0c0c,#121212)}
+        .glass{background-color:rgba(26,29,33,.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+        .btn{display:inline-flex;align-items:center;justify-content:center;border-radius:0.75rem;font-weight:600}
+        .btn-emerald{background-image:linear-gradient(to right,#34d399,#059669)}
+        .btn-emerald:hover{transform:scale(1.02)}
+        .btn-purple{background-image:linear-gradient(to right,#a855f7,#d946ef);color:#fff}
+        .btn-purple:hover{transform:scale(1.02)}
+        .btn-ghost{color:#d1d5db}
+        .pill{font-size:.75rem;border-radius:.5rem;border:1px solid #374151;padding:.25rem .6rem;background:#0c1116;color:#d1d5db}
+        .pill-active{background:#059669;color:#fff;border-color:#10b981}
+        .fade-up{animation:fadeUp .6s ease both}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    </style>
     {% block head %}{% endblock %}
 </head>
-<body class="bg-black text-white min-h-screen">
-    {# Show a back button on the swipe page to ensure visibility #}
+<body class="bg-app text-white min-h-screen">
     {% if request.path == '/swipe/' %}
-        <a id="back-home-button" href="{% url 'home' %}" class="fixed top-4 right-4 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold px-3 py-2 rounded shadow">← Home</a>
+        <a id="back-home-button" href="{% url 'home' %}" class="fixed top-4 right-4 btn px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-black shadow">← Home</a>
     {% endif %}
     {% if request.user.is_authenticated %}
     <!-- Site-wide Menu Button and Dropdown (Top Right) -->

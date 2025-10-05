@@ -1,49 +1,64 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto py-12">
-  <h2 class="text-3xl font-semibold text-center mb-6">Discover People</h2>
+<div class="min-h-screen bg-gradient-to-b from-black via-[#0c0c0c] to-[#121212] text-white flex items-center justify-center px-4 py-10">
+  <div class="w-full max-w-3xl">
+    <div class="relative rounded-3xl border border-gray-700/70 bg-[#0e1216]/80 backdrop-blur-md shadow-2xl overflow-hidden">
+      <div class="absolute inset-x-0 -top-10 h-24 bg-gradient-to-b from-emerald-500/20 to-transparent blur-2xl" aria-hidden></div>
 
-  <div id="card" class="bg-gray-900 rounded-lg p-6 shadow-md max-w-xl mx-auto text-center relative overflow-hidden">
-    <div id="no-more" class="hidden p-8">
-      <p class="text-gray-400">No more people to show right now.</p>
-    </div>
+  <div id="profile">
+  <div id="card-inner" class="px-6 sm:px-10 pt-8 pb-4 text-center">
+        <img id="artist-image" src="" alt="Artist" class="w-48 h-48 rounded-md object-cover shadow-md hidden mx-auto mb-4">
+        <h1 id="username" class="text-3xl font-bold tracking-tight"></h1>
+        <p class="mt-2 text-sm text-gray-300">
+          <span id="compatibility">Compatibility: N/A</span>
+        </p>
+      </div>
 
-    <div id="profile" class="space-y-4 transform transition-transform duration-300 ease-out">
-      <div id="card-inner" class="bg-gray-800 rounded-lg p-6 flex flex-col items-center gap-4">
-          <img id="artist-image" src="" alt="Artist" class="w-48 h-48 rounded-md object-cover shadow-md hidden">
-          <h3 id="username" class="text-2xl font-semibold"></h3>
-          <div id="compatibility" class="text-gray-400"></div>
+  <div class="mx-6 sm:mx-10 mb-8 rounded-2xl border border-emerald-600/30 p-6 sm:p-8" id="bio-container">
+        <p class="text-center text-gray-300 mb-6" id="bio"></p>
 
-          <div id="bio-container" class="max-w-prose text-sm text-gray-300">
-            <p id="bio"></p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="col-span-1">
+            <h3 class="text-center text-base font-semibold mb-3 text-gray-200 tracking-wide uppercase border-b border-gray-700 pb-2">Top Artists</h3>
+            <div class="rounded-xl border border-gray-700/70 p-4 sm:p-5 bg-[#0c1116]/60">
+              <ul id="top-artists" class="list-disc list-inside space-y-1 text-gray-200/90"></ul>
+            </div>
           </div>
 
-          <div>
-            <h4 class="font-semibold">Top Artists</h4>
-            <ul id="top-artists" class="text-sm text-gray-300 list-disc list-inside"></ul>
+          <div class="col-span-1">
+            <h3 class="text-center text-base font-semibold mb-3 text-gray-200 tracking-wide uppercase border-b border-gray-700 pb-2">Top Genres</h3>
+            <div id="genres-container" class="rounded-xl border border-gray-700/70 p-4 sm:p-5 bg-[#0c1116]/60">
+              <p id="genres" class="text-gray-200/90"></p>
+            </div>
           </div>
 
-          <div id="genres-container" class="w-full">
-            <h4 class="font-semibold">Top Genres</h4>
-            <p id="genres" class="text-sm text-gray-300"></p>
-          </div>
-
-          <div id="tracks-container" class="w-full">
-            <h4 class="font-semibold">Top Tracks</h4>
-            <ul id="top-tracks" class="text-sm text-gray-300 list-disc list-inside"></ul>
+          <div class="col-span-1">
+            <h3 class="text-center text-base font-semibold mb-3 text-gray-200 tracking-wide uppercase border-b border-gray-700 pb-2">Top Tracks</h3>
+            <div id="tracks-container" class="rounded-xl border border-gray-700/70 p-4 sm:p-5 bg-[#0c1116]/60">
+              <ul id="top-tracks" class="list-disc list-inside space-y-1 text-gray-200/90"></ul>
+            </div>
           </div>
         </div>
-
-      <div class="flex gap-4 justify-center mt-4">
-        <button id="dislike" class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded">Dislike</button>
-        <button id="like" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded">Like</button>
       </div>
-      <div id="spinner" class="hidden mt-4 text-gray-400">Loading…</div>
+
+      <div class="px-6 sm:px-10 pb-8 flex items-center justify-center gap-4">
+        <button id="dislike" class="px-6 py-6 rounded-xl bg-red-600 hover:scale-[1.02] transition-transform shadow-md">Dislike</button>
+        <button id="like" class="px-6 py-6 rounded-xl bg-gradient-to-r from-green-400 to-emerald-600 hover:scale-[1.02] transition-transform shadow-md">Like</button>
+      </div>
+
+  <div id="no-more" class="hidden p-8 text-center text-gray-400">No more people to show right now.</div>
+  </div> <!-- #profile -->
+      <div id="spinner" class="hidden mt-4 text-gray-400 text-center">Loading…</div>
     </div>
   </div>
 </div>
 
+{{ block.super }}
+
+{% endblock %}
+
+{% block scripts %}
 <script>
 // Helpers
 function getCookie(name) {
@@ -77,10 +92,10 @@ async function fetchNext() {
   document.getElementById('username').textContent = data.user.username;
   // artist image (use first top artist image if present)
   const artistImage = document.getElementById('artist-image');
-  if (data.top_artists && data.top_artists.length && data.top_artists[0].image) {
+  if (artistImage && data.top_artists && data.top_artists.length && data.top_artists[0].image) {
     artistImage.src = data.top_artists[0].image;
     artistImage.classList.remove('hidden');
-  } else {
+  } else if (artistImage) {
     artistImage.classList.add('hidden');
   }
   if (data.compatibility) {
@@ -95,15 +110,15 @@ async function fetchNext() {
   }
   const artistsList = document.getElementById('top-artists');
   artistsList.innerHTML = '';
-  data.top_artists.forEach(a => {
+  (data.top_artists||[]).forEach(a => {
     const li = document.createElement('li');
-    li.textContent = a.name;
+    li.textContent = a.name || a;
     artistsList.appendChild(li);
   });
 
   // bio
   const bioEl = document.getElementById('bio');
-  if (data.user.bio) {
+  if (data.user && data.user.bio) {
     bioEl.textContent = data.user.bio;
     document.getElementById('bio-container').classList.remove('hidden');
   } else {
@@ -127,7 +142,7 @@ async function fetchNext() {
   if (data.top_tracks && data.top_tracks.length) {
     data.top_tracks.forEach(t => {
       const li = document.createElement('li');
-      li.textContent = `${t.name} — ${t.artists.join(', ')}`;
+      li.textContent = `${t.name} — ${Array.isArray(t.artists)?t.artists.join(', '):t.artists}`;
       tracksList.appendChild(li);
     });
     document.getElementById('tracks-container').classList.remove('hidden');
@@ -135,12 +150,9 @@ async function fetchNext() {
     document.getElementById('tracks-container').classList.add('hidden');
   }
 
-  // reset transform
-  const card = document.getElementById('card-inner');
-  card.style.transform = '';
-  card.style.transition = '';
+  // render candidate
+  renderCandidate(data);
   document.getElementById('spinner').classList.add('hidden');
-  // enable buttons when we have a candidate
   setButtonsEnabled(true);
   return data.user.username;
   } catch (err) {
@@ -171,6 +183,72 @@ async function sendAction(username, action) {
   }
 }
 
+function renderCandidate(data) {
+  if (!data || !data.user) {
+    document.getElementById('profile').style.display = 'none';
+    document.getElementById('no-more').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('profile').style.display = 'block';
+  document.getElementById('no-more').classList.add('hidden');
+  document.getElementById('username').textContent = data.user.username;
+  const artistImage = document.getElementById('artist-image');
+  if (artistImage && data.top_artists && data.top_artists.length && data.top_artists[0].image) {
+    artistImage.src = data.top_artists[0].image;
+    artistImage.classList.remove('hidden');
+  } else if (artistImage) {
+    artistImage.classList.add('hidden');
+  }
+  if (data.compatibility) {
+    document.getElementById('compatibility').textContent = `Compatibility: ${data.compatibility.total_score}%`;
+    if (data.compatibility.breakdown) {
+      const bd = data.compatibility.breakdown;
+      document.getElementById('compatibility').textContent += ` (Artists ${bd.artist_compatibility}% • Genres ${bd.genre_compatibility}% • Tracks ${bd.track_compatibility}%)`;
+    }
+  } else {
+    document.getElementById('compatibility').textContent = 'Compatibility: N/A';
+  }
+  const artistsList = document.getElementById('top-artists');
+  artistsList.innerHTML = '';
+  (data.top_artists||[]).forEach(a => {
+    const li = document.createElement('li');
+    li.textContent = a.name || a;
+    artistsList.appendChild(li);
+  });
+  const bioEl = document.getElementById('bio');
+  if (data.user && data.user.bio) {
+    bioEl.textContent = data.user.bio;
+    document.getElementById('bio-container').classList.remove('hidden');
+  } else {
+    bioEl.textContent = '';
+    document.getElementById('bio-container').classList.add('hidden');
+  }
+  const genresEl = document.getElementById('genres');
+  if (data.genres && data.genres.length) {
+    genresEl.textContent = data.genres.join(', ');
+    document.getElementById('genres-container').classList.remove('hidden');
+  } else {
+    genresEl.textContent = '';
+    document.getElementById('genres-container').classList.add('hidden');
+  }
+  const tracksList = document.getElementById('top-tracks');
+  tracksList.innerHTML = '';
+  if (data.top_tracks && data.top_tracks.length) {
+    data.top_tracks.forEach(t => {
+      const li = document.createElement('li');
+      li.textContent = `${t.name} — ${Array.isArray(t.artists)?t.artists.join(', '):t.artists}`;
+      tracksList.appendChild(li);
+    });
+    document.getElementById('tracks-container').classList.remove('hidden');
+  } else {
+    document.getElementById('tracks-container').classList.add('hidden');
+  }
+  // reset transform
+  const card = document.getElementById('card-inner');
+  card.style.transform = '';
+  card.style.transition = '';
+}
+
 let currentUsername = null;
 let isDragging = false;
 let startX = 0;
@@ -197,14 +275,24 @@ cardInner.addEventListener('pointerup', async (e) => {
     // like
     cardInner.style.transition = 'transform 300ms ease-out';
     cardInner.style.transform = `translateX(1000px) rotate(30deg)`;
-    await sendAction(currentUsername, 'like');
-    currentUsername = await fetchNext();
+    const res = await sendAction(currentUsername, 'like');
+    if (res && res.next) {
+      renderCandidate(res.next);
+      currentUsername = res.next.user.username;
+    } else {
+      currentUsername = await fetchNext();
+    }
   } else if (currentX < -threshold) {
     // dislike
     cardInner.style.transition = 'transform 300ms ease-out';
     cardInner.style.transform = `translateX(-1000px) rotate(-30deg)`;
-    await sendAction(currentUsername, 'dislike');
-    currentUsername = await fetchNext();
+    const res = await sendAction(currentUsername, 'dislike');
+    if (res && res.next) {
+      renderCandidate(res.next);
+      currentUsername = res.next.user.username;
+    } else {
+      currentUsername = await fetchNext();
+    }
   } else {
     // snap back
     cardInner.style.transition = 'transform 200ms ease-out';
@@ -219,13 +307,23 @@ document.addEventListener('keydown', async (e) => {
   if (e.key === 'ArrowRight') {
     cardInner.style.transition = 'transform 300ms ease-out';
     cardInner.style.transform = `translateX(1000px) rotate(30deg)`;
-    await sendAction(currentUsername, 'like');
-    currentUsername = await fetchNext();
+    const res = await sendAction(currentUsername, 'like');
+    if (res && res.next) {
+      renderCandidate(res.next);
+      currentUsername = res.next.user.username;
+    } else {
+      currentUsername = await fetchNext();
+    }
   } else if (e.key === 'ArrowLeft') {
     cardInner.style.transition = 'transform 300ms ease-out';
     cardInner.style.transform = `translateX(-1000px) rotate(-30deg)`;
-    await sendAction(currentUsername, 'dislike');
-    currentUsername = await fetchNext();
+    const res = await sendAction(currentUsername, 'dislike');
+    if (res && res.next) {
+      renderCandidate(res.next);
+      currentUsername = res.next.user.username;
+    } else {
+      currentUsername = await fetchNext();
+    }
   }
 });
 
@@ -235,16 +333,26 @@ document.getElementById('like').addEventListener('click', async () => {
   // animate
   cardInner.style.transition = 'transform 300ms ease-out';
   cardInner.style.transform = `translateX(1000px) rotate(30deg)`;
-  await sendAction(currentUsername, 'like');
-  currentUsername = await fetchNext();
+  const res = await sendAction(currentUsername, 'like');
+  if (res && res.next) {
+    renderCandidate(res.next);
+    currentUsername = res.next.user.username;
+  } else {
+    currentUsername = await fetchNext();
+  }
 });
 
 document.getElementById('dislike').addEventListener('click', async () => {
   if (!currentUsername) return;
   cardInner.style.transition = 'transform 300ms ease-out';
   cardInner.style.transform = `translateX(-1000px) rotate(-30deg)`;
-  await sendAction(currentUsername, 'dislike');
-  currentUsername = await fetchNext();
+  const res = await sendAction(currentUsername, 'dislike');
+  if (res && res.next) {
+    renderCandidate(res.next);
+    currentUsername = res.next.user.username;
+  } else {
+    currentUsername = await fetchNext();
+  }
 });
 
 function setButtonsEnabled(enabled) {
@@ -267,8 +375,8 @@ function setButtonsEnabled(enabled) {
 init = async () => { currentUsername = await fetchNext(); };
 init();
 // disable buttons initially until first candidate loaded
+
 setButtonsEnabled(false);
 </script>
-
 {% endblock %}
 

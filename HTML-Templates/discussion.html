@@ -62,26 +62,15 @@
                 </a>
             </div>
 
-    <div class="bg-gray-800 p-6 rounded-lg mb-6">
-    <h2 class="text-xl font-semibold mb-2 text-purple-500">Create a Post</h2>
-        <form id="post-form" method="post" enctype="multipart/form-data">
+    <div class="glass border border-gray-700 rounded-2xl p-6 mb-6">
+        <h2 class="text-xl font-semibold mb-3 text-purple-300">Create a Post</h2>
+        <form id="post-form" method="post" enctype="multipart/form-data" class="space-y-3">
             {% csrf_token %}
-            <div class="mb-3">
-                {{ form.content }}
-            </div>
-            <div class="flex items-center space-x-3">
-                <!-- File icon (no background) using a filled document SVG; color controlled by text-blue-700 -->
-                <label for="post-image-input" class="inline-flex items-center justify-center text-blue-700 hover:text-blue-800 w-10 h-10 cursor-pointer" aria-hidden="true">
-                    <!-- filled document icon -->
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" class="w-8 h-8" fill="currentColor" aria-hidden="true">
-                        <path d="M45 2H19a6 6 0 0 0-6 6v48a6 6 0 0 0 6 6h26a6 6 0 0 0 6-6V18L45 2zM41 6.6L55.4 21H42a1 1 0 0 1-1-1V6.6zM18 10a1 1 0 0 1 1-1h20v12a4 4 0 0 0 4 4h12v26a3 3 0 0 1-3 3H19a3 3 0 0 1-3-3V10z"/>
-                        <rect x="20" y="30" width="24" height="4" rx="1" fill="white" opacity="1"/>
-                        <rect x="20" y="38" width="18" height="4" rx="1" fill="white" opacity="1"/>
-                    </svg>
-                </label>
+            <div>{{ form.content }}</div>
+            <div class="flex items-center gap-3">
+                <label for="post-image-input" class="cursor-pointer text-blue-400 hover:text-blue-300">📄 Add image</label>
                 <div id="selected-file-name" class="text-sm text-gray-300">No file chosen</div>
-
-                <button type="submit" class="ml-auto mt-0 bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded">Post</button>
+                <button class="ml-auto btn btn-emerald px-4 py-2">Post</button>
             </div>
             {{ form.image }}
         </form>
@@ -228,11 +217,10 @@
         {% endfor %}
     </div>
 </div>
-    <!-- Bottom-centered Back to Home button (matches provided design) -->
-    <a href="{% url 'home' %}" aria-label="Back to Home" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-blue-400 hover:bg-blue-500 text-white font-bold py-3 px-10 rounded-full shadow-md transition-transform transform-gpu hover:scale-105 flex items-center space-x-3">
-        <span class="text-2xl leading-none">&larr;</span>
-        <span class="text-lg">Back to Home</span>
-    </a>
+
+<a href="{% url 'home' %}" class="fixed bottom-6 left-1/2 -translate-x-1/2 btn btn-purple px-10 py-3 shadow">
+    ← Back to Home
+</a>
 
     <!-- Show selected filename for file input -->
     <script>

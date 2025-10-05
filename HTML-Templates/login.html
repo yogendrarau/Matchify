@@ -81,20 +81,48 @@
             submitButton.disabled = true;
             submitButton.innerHTML = 'Logging in...';
 
+            // Helper to read a cookie by name (used for CSRF fallback)
+            function getCookie(name) {
+                const value = `; ${document.cookie}`;
+                const parts = value.split(`; ${name}=`);
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
+            }
+
+            // Prefer the form CSRF token, but fall back to the csrftoken cookie (more robust across browsers)
+            const csrfFromForm = (form.querySelector('[name=csrfmiddlewaretoken]') || {}).value;
+            const csrfToken = csrfFromForm || getCookie('csrftoken');
+
             fetch(form.action || window.location.pathname, {
                 method: 'POST',
                 body: formData,
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRFToken': form.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'X-CSRFToken': csrfToken,
                 },
             })
-            .then(response => response.json())
+            .then(async response => {
+                // If server returned non-OK status, try to parse JSON error, else throw
+                let payload = null;
+                try {
+                    payload = await response.clone().json();
+                } catch (e) {
+                    // Non-JSON response
+                    payload = null;
+                }
+
+                if (!response.ok) {
+                    const msg = (payload && payload.messages && payload.messages[0]) || 'An unexpected error occurred. Please try again.';
+                    throw new Error(msg);
+                }
+
+                return payload;
+            })
             .then(data => {
                 messagesDiv.innerHTML = '';
-                if (data.success) {
+                if (data && data.success) {
                     window.location.href = data.redirect_url || '/';
-                } else {
+                } else if (data) {
                     if (data.messages) {
                         data.messages.forEach(message => {
                             var messageEl = document.createElement('div');
@@ -103,11 +131,13 @@
                             messagesDiv.appendChild(messageEl);
                         });
                     }
+                    if (data.reset_captcha && typeof grecaptcha !== 'undefined') grecaptcha.reset();
+                } else {
+                    messagesDiv.innerHTML = '<div class="message-popup">An unexpected error occurred. Please try again.</div>';
                 }
-                if (data.reset_captcha && typeof grecaptcha !== 'undefined') grecaptcha.reset();
             })
             .catch(err => {
-                messagesDiv.innerHTML = '<div class="message-popup">An unexpected error occurred. Please try again.</div>';
+                messagesDiv.innerHTML = `<div class="message-popup">${err.message || 'An unexpected error occurred. Please try again.'}</div>`;
                 console.error('Login error', err);
             })
             .finally(() => {
