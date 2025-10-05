@@ -32,6 +32,7 @@ import requests
 from django.http import JsonResponse
 from django.urls import reverse
 from django.db.models import Q
+from django.db.models import Count, Case, When, IntegerField
 
 logger = logging.getLogger(__name__)
 
@@ -741,6 +742,7 @@ def profile(request, username):
     # Safely fetch profile bio without triggering a ProgrammingError if the Profile table doesn't exist yet
     profile_exists = False
     profile_bio = None
+    author_avatar_url = None
     try:
         from .models import Profile
         try:
@@ -749,6 +751,15 @@ def profile(request, username):
                 profile_exists = True
                 # Ensure we return an empty string if bio is None so template logic works
                 profile_bio = prof.bio or ''
+                # Attempt to get profile image URL if present. Don't strict-check storage.exists here;
+                # the template will attempt to load the URL and fall back to the initial if it 404s.
+                try:
+                    if getattr(prof, 'image', None) and getattr(prof.image, 'name', None):
+                        author_avatar_url = prof.image.url
+                    else:
+                        author_avatar_url = None
+                except Exception:
+                    author_avatar_url = None
         except Exception as e:
             # Any DB-level exception (e.g., relation does not exist) will be caught here
             print(f"Debug: Could not query Profile for user {user.username}: {e}")
@@ -787,6 +798,7 @@ def profile(request, username):
         'compatibility_score': compatibility_score,
         'profile_exists': profile_exists,
         'profile_bio': profile_bio,
+        'author_avatar_url': author_avatar_url,
     }
 
     # If a flash message exists for edit success, include it
@@ -895,7 +907,10 @@ def upload_profile_image(request):
 
     # Build URL for response
     try:
-        image_url = profile_obj.image.url if profile_obj.image else ''
+        if profile_obj.image:
+            image_url = request.build_absolute_uri(profile_obj.image.url)
+        else:
+            image_url = ''
     except Exception:
         image_url = ''
 
@@ -1006,7 +1021,18 @@ def discussion(request):
     import os
     import shutil
 
-    posts_qs = Post.objects.select_related('author').all()
+    # Prefetch related data and annotate reaction counts to avoid N+1 queries.
+    # Annotate likes_count/dislikes_count in the DB using conditional aggregation so
+    # we don't call .count() for every post in Python.
+    posts_qs = (
+        Post.objects
+        .select_related('author')
+        .prefetch_related('comments', 'reactions', 'comments__reactions')
+        .annotate(
+            likes_count=Count(Case(When(reactions__value=Reaction.LIKE, then=1), output_field=IntegerField())),
+            dislikes_count=Count(Case(When(reactions__value=Reaction.DISLIKE, then=1), output_field=IntegerField())),
+        )
+    )
     posts = []
     for p in posts_qs:
         image_exists = False
@@ -1030,13 +1056,29 @@ def discussion(request):
                         image_exists = False
         except Exception:
             image_exists = False
-        # Reaction counts
-        likes = p.reactions.filter(value=Reaction.LIKE).count()
-        dislikes = p.reactions.filter(value=Reaction.DISLIKE).count()
-        # Current user's reaction value or 0
+        # Reaction counts: prefer the annotated DB values (faster). Fall back to 0
+        # if the annotation isn't present for any reason.
         try:
-            user_reaction_obj = p.reactions.filter(user=request.user).first() if request.user.is_authenticated else None
-            user_reaction = user_reaction_obj.value if user_reaction_obj else 0
+            likes = int(getattr(p, 'likes_count', 0) or 0)
+        except Exception:
+            likes = 0
+        try:
+            dislikes = int(getattr(p, 'dislikes_count', 0) or 0)
+        except Exception:
+            dislikes = 0
+
+        # Current user's reaction value or 0
+        # Determine current user's reaction without extra DB queries if possible.
+        user_reaction = 0
+        try:
+            if request.user.is_authenticated:
+                # Try to use prefetched reactions first
+                try:
+                    reactions = list(p.reactions.all())
+                    urr = next((r for r in reactions if r.user_id == request.user.id), None)
+                except Exception:
+                    urr = p.reactions.filter(user=request.user).first()
+                user_reaction = urr.value if urr else 0
         except Exception:
             user_reaction = 0
 
@@ -1138,6 +1180,16 @@ def react(request, post_id):
         if not created and reaction.value == v:
             reaction.delete()
 
+        # If AJAX request, return JSON with updated counts for the comment
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or getattr(request, 'is_ajax', lambda: False)():
+            try:
+                likes = comment.reactions.filter(value=Reaction.LIKE).count()
+                dislikes = comment.reactions.filter(value=Reaction.DISLIKE).count()
+            except Exception:
+                likes = 0
+                dislikes = 0
+            return JsonResponse({'success': True, 'likes': likes, 'dislikes': dislikes})
+
         return redirect('discussion')
     else:
         # Reacting to a post
@@ -1158,6 +1210,12 @@ def react(request, post_id):
 
             if not created and reaction.value == v:
                 reaction.delete()
+
+            # If AJAX request, return JSON with updated counts
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or getattr(request, 'is_ajax', lambda: False)():
+                likes = post.reactions.filter(value=Reaction.LIKE).count()
+                dislikes = post.reactions.filter(value=Reaction.DISLIKE).count()
+                return JsonResponse({'success': True, 'likes': likes, 'dislikes': dislikes})
 
         return redirect('discussion')
 

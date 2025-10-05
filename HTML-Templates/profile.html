@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 
+{% load static %}
 {% block title %}My Profile - Matchify{% endblock %}
 
 {% block content %}
@@ -15,11 +16,12 @@
             <div class="relative group">
                 <!-- Avatar container -->
                 <div id="avatar-wrap" class="w-24 h-24 bg-gray-700 rounded-full overflow-hidden flex items-center justify-center text-3xl text-white">
-                    {% if user_data.profile_exists and user_data.user.profile.image %}
-                        <img id="profile-avatar" src="{{ user_data.user.profile.image.url }}" alt="avatar" class="w-24 h-24 object-cover" />
+                    {% if user_data.author_avatar_url %}
+                        <img id="profile-avatar" src="{{ user_data.author_avatar_url }}" alt="avatar" class="w-24 h-24 object-cover" onerror="this.style.display='none'; document.getElementById('profile-avatar-initial').style.display='flex'" onload="document.getElementById('profile-avatar-initial').style.display='none'" />
+                        <div id="profile-avatar-initial" class="w-24 h-24 flex items-center justify-center text-3xl text-white" style="display:none">{{ user_data.user.username|slice:":1"|upper }}</div>
                     {% else %}
-                        <div id="profile-avatar-initial" class="w-24 h-24 flex items-center justify-center text-3xl text-white">{{ user_data.user.username|slice:":1"|upper }}</div>
-                        <img id="profile-avatar" src="" alt="avatar" class="w-24 h-24 object-cover hidden" />
+                        <img id="profile-avatar" src="{% static 'avatars/' %}{{ user_data.user.username }}.png" alt="avatar" class="w-24 h-24 object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" onload="this.nextElementSibling.style.display='none'" />
+                        <div id="profile-avatar-initial" class="w-24 h-24 flex items-center justify-center text-3xl text-white" style="display:none">{{ user_data.user.username|slice:":1"|upper }}</div>
                     {% endif %}
                 </div>
 
