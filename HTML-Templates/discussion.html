@@ -13,6 +13,45 @@
 </style>
 {% endblock %}
 
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    // Intercept reaction forms and submit via fetch
+    document.querySelectorAll('form[action^="/react/"]').forEach(form => {
+        form.addEventListener('submit', function(e){
+            e.preventDefault();
+            const url = form.getAttribute('action');
+            const formData = new FormData(form);
+            // send AJAX
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': form.querySelector('[name=csrfmiddlewaretoken]').value
+                },
+                body: formData
+            }).then(r => r.json()).then(data => {
+                if (data && data.success) {
+                    // find the likes/dislikes span(s) nearby and update
+                    const likesSpan = form.querySelector('span');
+                    // fallback: find sibling spans for counts
+                    if (likesSpan && data.likes !== undefined) likesSpan.textContent = data.likes;
+                    // update other button count (dislike) by searching parent container
+                    const parent = form.closest('.bg-gray-800, .bg-gray-900');
+                    if (parent) {
+                        parent.querySelectorAll('button > span').forEach((sp, idx) => {
+                            // Attempt to map first button -> likes, second -> dislikes
+                            if (idx === 0 && data.likes !== undefined) sp.textContent = data.likes;
+                            if (idx === 1 && data.dislikes !== undefined) sp.textContent = data.dislikes;
+                        });
+                    }
+                }
+            }).catch(console.error);
+        });
+    });
+});
+</script>
+{% endblock %}
 {% block content %}
 <div class="max-w-4xl mx-auto py-12">
             <h1 class="text-3xl font-bold text-center mb-6 text-green-500 glow-green">Community Discussion</h1>

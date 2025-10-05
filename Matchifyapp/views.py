@@ -32,6 +32,7 @@ import requests
 from django.http import JsonResponse
 from django.urls import reverse
 from django.db.models import Q
+from django.db.models import Count, Case, When, IntegerField
 
 logger = logging.getLogger(__name__)
 
@@ -901,7 +902,18 @@ def discussion(request):
     import os
     import shutil
 
-    posts_qs = Post.objects.select_related('author').all()
+    # Prefetch related data and annotate reaction counts to avoid N+1 queries.
+    # Annotate likes_count/dislikes_count in the DB using conditional aggregation so
+    # we don't call .count() for every post in Python.
+    posts_qs = (
+        Post.objects
+        .select_related('author')
+        .prefetch_related('comments', 'reactions', 'comments__reactions')
+        .annotate(
+            likes_count=Count(Case(When(reactions__value=Reaction.LIKE, then=1), output_field=IntegerField())),
+            dislikes_count=Count(Case(When(reactions__value=Reaction.DISLIKE, then=1), output_field=IntegerField())),
+        )
+    )
     posts = []
     for p in posts_qs:
         image_exists = False
@@ -925,15 +937,30 @@ def discussion(request):
                         image_exists = False
         except Exception:
             image_exists = False
-        # Reaction counts
-        likes = p.reactions.filter(value=Reaction.LIKE).count()
-        dislikes = p.reactions.filter(value=Reaction.DISLIKE).count()
-        # Current user's reaction value or 0
+        # Reaction counts: prefer the annotated DB values (faster). Fall back to 0
+        # if the annotation isn't present for any reason.
         try:
-            user_reaction_obj = p.reactions.filter(user=request.user).first() if request.user.is_authenticated else None
-            user_reaction = user_reaction_obj.value if user_reaction_obj else 0
+            likes = int(getattr(p, 'likes_count', 0) or 0)
         except Exception:
+            likes = 0
+        try:
+            dislikes = int(getattr(p, 'dislikes_count', 0) or 0)
+        except Exception:
+            dislikes = 0
+        # Current user's reaction value or 0
+            # Determine current user's reaction without extra DB queries if possible.
             user_reaction = 0
+            try:
+                if request.user.is_authenticated:
+                    # Try to use prefetched reactions first
+                    try:
+                        reactions = list(p.reactions.all())
+                        urr = next((r for r in reactions if r.user_id == request.user.id), None)
+                    except Exception:
+                        urr = p.reactions.filter(user=request.user).first()
+                    user_reaction = urr.value if urr else 0
+            except Exception:
+                user_reaction = 0
 
         # Author avatar (if available)
         try:
@@ -1053,6 +1080,12 @@ def react(request, post_id):
 
             if not created and reaction.value == v:
                 reaction.delete()
+
+            # If AJAX request, return JSON with updated counts
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or getattr(request, 'is_ajax', lambda: False)():
+                likes = post.reactions.filter(value=Reaction.LIKE).count()
+                dislikes = post.reactions.filter(value=Reaction.DISLIKE).count()
+                return JsonResponse({'success': True, 'likes': likes, 'dislikes': dislikes})
 
         return redirect('discussion')
 
