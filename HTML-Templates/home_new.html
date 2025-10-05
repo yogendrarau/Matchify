@@ -4,31 +4,7 @@
 
 {% block content %}
 <div class="min-h-screen bg-gradient-to-b from-black via-[#0c0c0c] to-[#121212] flex flex-col items-center justify-center text-white px-4">
-  {% if user.is_authenticated %}
-    <!-- Menu Button and Dropdown (Top Right) -->
-    <div class="absolute top-4 right-4">
-      <div class="relative">
-        <!-- Circle Menu Button -->
-        <button onclick="toggleDropdown(event)" 
-                class="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 focus:outline-none">
-            <span class="text-xl">☰</span>
-        </button>
-
-        <!-- Dropdown Menu -->
-        <div id="dropdownMenu" class="hidden absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg py-2 z-50">
-            <!-- My Profile -->
-            <a id="open-profile-link" href="{% url 'profile' user.username %}" class="w-full block text-left px-4 py-2 hover:bg-gray-700 text-white">My Profile</a>
-            <!-- Friends (network) -->
-            <a id="open-friends-link" href="{% url 'friends' %}" class="w-full block text-left px-4 py-2 hover:bg-gray-700 text-white">Friends</a>
-            <!-- Logout -->
-            <form action="logout" method="post" class="border-t border-gray-700">
-                {% csrf_token %}
-                <button type="submit" class="w-full text-left px-4 py-2 hover:bg-gray-700 text-white">Logout</button>
-            </form>
-        </div>
-      </div>
-    </div>
-  {% endif %}
+  {# Site-wide dropdown is provided by base.html; no per-page duplicate here #}
   <!-- Title Section -->
   <div class="text-center mb-10 animate-fade-in">
     <h1 class="text-6xl font-extrabold bg-gradient-to-r from-green-400 to-emerald-600 bg-clip-text text-transparent drop-shadow-lg">Matchify</h1>

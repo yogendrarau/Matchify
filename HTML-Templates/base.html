@@ -13,7 +13,86 @@
     {% if request.path == '/swipe/' %}
         <a id="back-home-button" href="{% url 'home' %}" class="fixed top-4 right-4 bg-yellow-500 hover:bg-yellow-600 text-black font-semibold px-3 py-2 rounded shadow">← Home</a>
     {% endif %}
-    {% block content %}{% endblock %}
-    {% block scripts %}{% endblock %}
+    {% if request.user.is_authenticated %}
+    <!-- Site-wide Menu Button and Dropdown (Top Right) -->
+        <div class="fixed top-4 right-4 z-60">
+      <div class="relative">
+        <!-- Circle Menu Button -->
+        <button id="site-menu-button" 
+                class="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 focus:outline-none" aria-expanded="false" aria-controls="site-dropdownMenu">
+            <span class="text-xl">☰</span>
+        </button>
+
+        <!-- Dropdown Menu -->
+            <div id="site-dropdownMenu" role="menu" aria-hidden="true" class="hidden absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg py-2 z-60 pointer-events-auto">
+            <!-- My Profile -->
+            <a id="site-open-profile-link" href="{% url 'profile' request.user.username %}" class="w-full block text-left px-4 py-2 hover:bg-gray-700 text-white">My Profile</a>
+            <!-- Friends -->
+            <a id="site-open-friends-link" href="{% url 'friends' %}" class="w-full block text-left px-4 py-2 hover:bg-gray-700 text-white">Friends</a>
+            <!-- Logout -->
+            <form action="{% url 'logout' %}" method="post" class="border-t border-gray-700">
+                {% csrf_token %}
+                <button type="submit" class="w-full text-left px-4 py-2 hover:bg-gray-700 text-white">Logout</button>
+            </form>ok
+        </div>
+      </div>
+    </div>
+    {% endif %}
+        {% block content %}{% endblock %}
+
+            <!-- Site-wide dropdown script: placed outside the overridable scripts block so it always runs -->
+            <script>
+                (function(){
+                    function closeMenu(menu, button) {
+                        if (!menu || !button) return;
+                            menu.classList.add('hidden');
+                            menu.setAttribute('aria-hidden', 'true');
+                            button.setAttribute('aria-expanded', 'false');
+                    }
+
+                    function openMenu(menu, button) {
+                        if (!menu || !button) return;
+                            menu.classList.remove('hidden');
+                            menu.setAttribute('aria-hidden', 'false');
+                            button.setAttribute('aria-expanded', 'true');
+                    }
+
+                    function toggleMenu(menu, button) {
+                        if (!menu || !button) return;
+                        if (menu.classList.contains('hidden')) openMenu(menu, button); else closeMenu(menu, button);
+                    }
+
+                    function init() {
+                        const btn = document.getElementById('site-menu-button');
+                        const menu = document.getElementById('site-dropdownMenu');
+                        if (!btn || !menu) return; // nothing to do on this page
+
+                        // Ensure menu starts hidden
+                        menu.classList.add('hidden');
+
+                        // Toggle on click
+                        btn.addEventListener('click', function(e){
+                            e.stopPropagation();
+                            toggleMenu(menu, btn);
+                        });
+
+                        // Close on outside click
+                        document.addEventListener('click', function(e){
+                            if (!btn.contains(e.target) && !menu.contains(e.target)) {
+                                closeMenu(menu, btn);
+                            }
+                        });
+
+                        // Close on Escape key
+                        document.addEventListener('keydown', function(e){
+                            if (e.key === 'Escape') closeMenu(menu, btn);
+                        });
+                    }
+
+                    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+                })();
+            </script>
+
+        {% block scripts %}{% endblock %}
 </body>
 </html>
