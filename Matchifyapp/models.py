@@ -131,4 +131,20 @@ class ArtistListen(models.Model):
         return f"ArtistListen(user={self.user.username} artist={self.artist_name} ms={self.total_ms})"
 
 
+class Message(models.Model):
+    """Direct one-to-one message between two users."""
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sent_messages')
+    recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='received_messages')
+    content = models.TextField(blank=True, null=True)
+    # Optional image attached to the message
+    image = models.ImageField(upload_to='message_images/', blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"Message({self.sender.username}->{self.recipient.username} @ {self.created_at})"
+
+
  

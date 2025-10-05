@@ -1,17 +1,14 @@
 {% extends 'base.html' %}
 
 {% load static %}
-{% block title %}My Profile - Matchify{% endblock %}
 
 {% block content %}
 <div class="bg-black min-h-screen flex flex-col items-center justify-center py-12">
     <!-- Back to Discussions Button -->
-    <a href="{% url 'home' %}" 
-       class="absolute top-5 left-5 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-md transition-transform transform hover:scale-105">
-        ← Back
-    </a>
+    <a href="{% url 'home' %}" class="absolute top-5 left-5 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-md transition-transform transform hover:scale-105">← Back</a>
 
     <div class="max-w-3xl w-full p-6 rounded-lg shadow-lg">
+                <!-- Message button location moved to Friend Actions section to avoid duplication -->
         <div class="flex items-center space-x-6 mb-4">
             <div class="relative group">
                 <!-- Avatar container -->
@@ -42,6 +39,7 @@
             <div>
                 <h2 class="text-2xl font-semibold text-white">{{ user_data.user.username }} {% if user_data.is_current_user %}(You){% endif %}</h2>
                 <p class="text-gray-400">Member since: {{ user_data.user.date_joined|date:"F j, Y" }}</p>
+                <!-- compact inline display removed; dedicated Display Song box is shown below -->
             </div>
         </div>
 
@@ -59,10 +57,13 @@
         {% if not user_data.is_current_user %}
             <div class="mb-4">
                 {% if user_data.is_friend %}
-                    <form action="{% url 'remove_friend' user_data.user.username %}" method="post">
-                        {% csrf_token %}
-                        <button type="submit" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Remove Friend</button>
-                    </form>
+                    <div class="flex items-center gap-2">
+                        <form action="{% url 'remove_friend' user_data.user.username %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Remove Friend</button>
+                        </form>
+                        <a href="{% url 'chat' user_data.user.username %}" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 shadow-sm">Message</a>
+                    </div>
                 {% elif user_data.friend_request_sent %}
                     <p class="text-yellow-500">Friend Request Sent</p>
                 {% elif user_data.friend_request_received %}
@@ -138,37 +139,8 @@
                 </div>
             </div>
 
-            <aside class="space-y-6">
-                <!-- Display Song panel -->
-                <div class="bg-gray-900 p-4 rounded">
-                    <h3 class="text-lg font-medium mb-2 text-white">Favorite Song</h3>
-                    <div id="current-display-song" class="mt-2 text-gray-300">
-                        {% if user_data.display_song %}
-                            <div class="flex items-center space-x-3">
-                                <img src="{{ user_data.display_song.album_art }}" alt="{{ user_data.display_song.name }}" class="w-12 h-12 rounded object-cover" />
-                                <div>`
-                                    <div class="font-semibold text-white">{{ user_data.display_song.name }}</div>
-                                    <div class="text-xs text-gray-400">{{ user_data.display_song.artist }}</div>
-                                </div>
-                                <button id="clear-display-song" class="ml-auto bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm">Clear</button>
-                            </div>
-                        {% else %}
-                            <div class="text-gray-400">No display song set. Search below to choose one.</div>
-                        {% endif %}
-                    </div>
-
-                    {% if user_data.is_current_user %}
-                    <div class="mt-3">
-                        <input id="display-song-search" type="search" placeholder="Search tracks..." class="w-full p-2 rounded bg-gray-800 text-white" />
-                        <div id="display-song-results" class="mt-2 space-y-2"></div>
-                        <div id="display-song-spinner" class="hidden text-sm text-gray-400 mt-2">Searching…</div>
-                    </div>
-                    {% endif %}
-                </div>
-
-                <!-- Top Songs panel -->
-                <div class="bg-gray-900 p-4 rounded self-start h-auto">
-                    <h3 class="text-lg font-medium mb-2 text-white">Top Songs</h3>
+            <aside class="bg-gray-900 p-4 rounded self-start h-auto">
+                <h3 class="text-lg font-medium mb-2 text-white">Top Songs</h3>
                 <div class="flex gap-2 mb-3">
                     <a href="?tracks_range=short_term" class="tracks-range-btn px-3 py-1 rounded text-sm transition transform hover:scale-105 shadow-sm {% if user_data.tracks_range == 'short_term' %}bg-green-700 text-white ring-2 ring-green-400{% else %}bg-green-600 text-white hover:bg-green-700 hover:brightness-110{% endif %}" data-range="short_term">4 Weeks</a>
                     <a href="?tracks_range=medium_term" class="tracks-range-btn px-3 py-1 rounded text-sm transition transform hover:scale-105 shadow-sm {% if user_data.tracks_range == 'medium_term' %}bg-green-700 text-white ring-2 ring-green-400{% else %}bg-green-600 text-white hover:bg-green-700 hover:brightness-110{% endif %}" data-range="medium_term">6 Months</a>
@@ -214,6 +186,43 @@
             </aside>
         </div>
 
+        <!-- Display Song box (separate) -->
+        <div class="max-w-3xl w-full p-4 mt-6">
+            <div class="bg-gray-900 p-4 rounded">
+                <h3 class="text-lg font-medium mb-2 text-white">Display Song</h3>
+                {% if user_data.display_song %}
+                    <div class="flex items-center gap-3">
+                        {% if user_data.display_song.album_art %}
+                            <img src="{{ user_data.display_song.album_art }}" class="w-16 h-16 rounded object-cover" alt="album art" />
+                        {% else %}
+                            <div class="w-16 h-16 bg-gray-700 rounded"></div>
+                        {% endif %}
+                        <div>
+                            <div class="font-semibold text-white">{{ user_data.display_song.name|default:user_data.display_song.title }}</div>
+                            <div class="text-xs text-gray-400">{{ user_data.display_song.artist }}</div>
+                            {% if user_data.display_song.preview_url %}
+                                <audio controls class="mt-2" src="{{ user_data.display_song.preview_url }}"></audio>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="text-gray-400">No display song set.</div>
+                {% endif %}
+
+                {% if user_data.is_current_user %}
+                    <!-- search UI moved here for owners -->
+                    <div class="mt-4">
+                        <h4 class="text-sm text-white mb-2">Choose a song</h4>
+                        <div class="flex gap-2">
+                            <input id="song-search" type="text" placeholder="Search tracks on Spotify" class="flex-1 bg-gray-800 text-white p-2 rounded" />
+                            <button id="search-btn" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded">Search</button>
+                        </div>
+                        <div id="search-results" class="mt-3 space-y-2"></div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
         <!-- Bottom action buttons removed as requested -->
     </div>
     
@@ -239,111 +248,79 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 <script>
-// Display song search + set handler
+// Song search and set display song handlers (only active for profile owners)
 document.addEventListener('DOMContentLoaded', function () {
-    const searchInput = document.getElementById('display-song-search');
-    const resultsEl = document.getElementById('display-song-results');
-    const spinner = document.getElementById('display-song-spinner');
-    const clearBtn = document.getElementById('clear-display-song');
+    const searchBtn = document.getElementById('search-btn');
+    const searchInput = document.getElementById('song-search');
+    const results = document.getElementById('search-results');
 
-    function getCsrfToken() {
+    function getCsrf() {
         const cookie = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='));
         return cookie ? cookie.split('=')[1] : '';
     }
 
-    if (clearBtn) {
-        clearBtn.addEventListener('click', async function () {
-            const csrftoken = getCsrfToken();
-            try {
-                const res = await fetch('{% url "set_display_song" %}', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest' },
-                    body: JSON.stringify({ action: 'clear' })
-                });
-                if (res.ok) location.reload();
-            } catch (err) { console.error('Error clearing display song', err); }
-        });
-    }
-
-    if (!searchInput) return;
-
-    let timeout = null;
-    searchInput.addEventListener('input', function (e) {
-        const q = searchInput.value.trim();
-        resultsEl.innerHTML = '';
-        if (timeout) clearTimeout(timeout);
-        if (!q) return;
-        timeout = setTimeout(() => doSearch(q), 350);
-    });
-
     async function doSearch(q) {
-        if (!resultsEl || !spinner) return;
-        spinner.classList.remove('hidden');
+        results.innerHTML = 'Searching...';
         try {
-            const res = await fetch('/search-track?q=' + encodeURIComponent(q), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-            if (!res.ok) {
-                resultsEl.innerHTML = '<div class="text-sm text-red-400">Search failed</div>';
-                return;
-            }
-            const data = await res.json();
-            renderResults(data.tracks || []);
-        } catch (err) {
-            console.error('Search error', err);
-            resultsEl.innerHTML = '<div class="text-sm text-red-400">Search failed</div>';
-        } finally {
-            spinner.classList.add('hidden');
-        }
-    }
-
-    function renderResults(tracks) {
-        if (!resultsEl) return;
-        if (!tracks.length) {
-            resultsEl.innerHTML = '<div class="text-sm text-gray-400">No results</div>';
-            return;
-        }
-        resultsEl.innerHTML = '';
-        tracks.slice(0,8).forEach(t => {
-            const div = document.createElement('div');
-            div.className = 'flex items-center justify-between p-2 bg-gray-800 rounded';
-            div.innerHTML = `
-                <div class="flex items-center space-x-3">
-                    <img src="${t.album_art || ''}" class="w-10 h-10 rounded object-cover" />
-                    <div>
-                        <div class="font-semibold text-white">${escapeHtml(t.name)}</div>
-                        <div class="text-xs text-gray-400">${escapeHtml(t.artist)}</div>
+            const resp = await fetch('{% url "search_track" %}?q=' + encodeURIComponent(q));
+            const data = await resp.json();
+            results.innerHTML = '';
+            (data.results || []).forEach(t => {
+                const el = document.createElement('div');
+                el.className = 'p-2 bg-gray-800 rounded flex items-center gap-3';
+                el.innerHTML = `
+                    ${t.album_art ? `<img src="${t.album_art}" class="w-12 h-12 rounded object-cover" />` : '<div class="w-12 h-12 bg-gray-700 rounded"></div>'}
+                    <div class="flex-1">
+                        <div class="font-medium text-white">${t.name}</div>
+                        <div class="text-xs text-gray-400">${t.artists}</div>
                     </div>
-                </div>
-                <div>
-                    <button data-track='${JSON.stringify(t).replace(/'/g, '&#39;')}' class="set-display-song bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">Set</button>
-                </div>
-            `;
-            resultsEl.appendChild(div);
-        });
-
-        // bind set buttons
-        resultsEl.querySelectorAll('.set-display-song').forEach(btn => {
-            btn.addEventListener('click', async function () {
-                const track = JSON.parse(this.getAttribute('data-track'));
-                const csrftoken = getCsrfToken();
-                try {
-                    const res = await fetch('{% url "set_display_song" %}', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest' },
-                        body: JSON.stringify({ action: 'set', track })
-                    });
-                    if (res.ok) location.reload(); else alert('Failed to set display song');
-                } catch (err) {
-                    console.error('Set display song error', err);
-                    alert('Network error');
-                }
+                    <button class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded set-song">Set</button>
+                `;
+                el.querySelector('.set-song').addEventListener('click', async () => {
+                    // POST to set-display-song
+                    const csrftoken = getCsrf();
+                    try {
+                        const setResp = await fetch('{% url "set_display_song" %}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrftoken
+                            },
+                            body: JSON.stringify({ song: { name: t.name, artist: t.artists, album_art: t.album_art, preview_url: t.preview_url, spotify_uri: t.spotify_uri } })
+                        });
+                        const setData = await setResp.json();
+                        if (setData.success) {
+                            alert('Display song set');
+                            // Optionally refresh page to show it
+                            window.location.reload();
+                        } else {
+                            alert('Could not set display song');
+                        }
+                    } catch (err) {
+                        console.error('set song failed', err);
+                        alert('Network error');
+                    }
+                });
+                results.appendChild(el);
             });
-        });
+            if ((data.results || []).length === 0) results.innerHTML = '<div class="text-gray-400">No results</div>';
+        } catch (err) {
+            console.error('search failed', err);
+            results.innerHTML = '<div class="text-gray-400">Search error</div>';
+        }
     }
 
-    function escapeHtml(str) {
-        if (!str) return '';
-        return String(str).replace(/[&<>\"']/g, function (s) {
-            return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[s];
+    if (searchBtn && searchInput) {
+        searchBtn.addEventListener('click', () => {
+            const q = searchInput.value.trim();
+            if (!q) return;
+            doSearch(q);
+        });
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                searchBtn.click();
+            }
         });
     }
 });
@@ -386,8 +363,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 fetch('{% url "upload_profile_image" %}', {
                     method: 'POST',
                     headers: {
-                        'X-CSRFToken': csrftoken
+                        'X-CSRFToken': csrftoken,
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
                     },
+                    credentials: 'same-origin',
                     body: formData
                 }).then(r => r.json()).then(data => {
                     if (data.success && data.image_url) {

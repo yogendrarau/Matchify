@@ -33,6 +33,7 @@ from django.http import JsonResponse
 from django.urls import reverse
 from django.db.models import Q
 from django.db.models import Count, Case, When, IntegerField
+from django.http import HttpResponseForbidden
 
 logger = logging.getLogger(__name__)
 
@@ -596,63 +597,7 @@ def pending_requests(request):
     return JsonResponse({"pending_requests": pending_requests})
 
 
-@login_required
-def mapify(request):
-    current_user = request.user
-    User = get_user_model()
-
-    # Get friendships involving the current user
-    friendships = Friendship.objects.filter(user1=current_user) | Friendship.objects.filter(user2=current_user)
-    
-    # Extract user objects from friendships
-    friends = set()
-    for friendship in friendships:
-        friends.add(friendship.user1)
-        friends.add(friendship.user2)
-    friends.discard(current_user)  # Remove self from friend list
-
-    # Get pending friend requests
-    received_requests = FriendRequest.objects.filter(to_user=current_user)
-    sent_requests = FriendRequest.objects.filter(from_user=current_user)
-
-    # Get other users (excluding self)
-    show_friends_only = request.GET.get('friends_only') == 'true'
-    if show_friends_only:
-        other_users = friends
-    else:
-        other_users = User.objects.exclude(id=current_user.id).exclude(is_superuser=True)
-
-    # Format data properly for template
-    users_data = []
-
-    # Current user node
-    users_data.append({
-        'username': current_user.username,
-        'is_current_user': True,
-        'is_friend': False,  # Not needed for self
-        'friend_request_sent': False,
-        'friend_request_received': False
-    })
-
-    # Other users (friends + non-friends)
-    for user in other_users:
-        try:
-            users_data.append({
-                'username': user.username,
-                'is_current_user': False,
-                'is_friend': user in friends,
-                'friend_request_sent': sent_requests.filter(to_user=user).exists(),
-                'friend_request_received': received_requests.filter(from_user=user).exists(),
-            })
-        except Exception as e:
-            print(f"Error processing user {user.username}: {str(e)}")
-            continue
-
-    return render(request, "mapify.html", {
-        'users_data': users_data,
-        'received_requests': received_requests,
-        'show_friends_only': show_friends_only
-    })
+# Mapify feature removed — replaced by Messages. If you need to restore, re-add mapify view and template.
 
 @login_required
 def send_friend_request(request, username):
@@ -770,6 +715,7 @@ def profile(request, username):
     profile_exists = False
     profile_bio = None
     author_avatar_url = None
+    display_song = None
     try:
         from .models import Profile
         try:
@@ -787,6 +733,11 @@ def profile(request, username):
                         author_avatar_url = None
                 except Exception:
                     author_avatar_url = None
+                # Expose a small display song payload if present on the Profile
+                try:
+                    display_song = getattr(prof, 'display_song', None) if prof is not None else None
+                except Exception:
+                    display_song = None
         except Exception as e:
             # Any DB-level exception (e.g., relation does not exist) will be caught here
             print(f"Debug: Could not query Profile for user {user.username}: {e}")
@@ -826,7 +777,7 @@ def profile(request, username):
         'profile_exists': profile_exists,
         'profile_bio': profile_bio,
         'author_avatar_url': author_avatar_url,
-        'display_song': getattr(prof, 'display_song', None) if profile_exists else None,
+        'display_song': display_song,
     }
 
     # If a flash message exists for edit success, include it
@@ -974,12 +925,12 @@ def leaderboard_results(request):
             if listen_q:
                 # Prefer play_count if available (how many times recent-play included artist)
                 if getattr(listen_q, 'play_count', None) and listen_q.play_count > 0:
-                    results.append({'username': u.username, 'score': listen_q.play_count, 'play_count': listen_q.play_count})
+                    results.append({'username': u.username, 'score': listen_q.play_count, 'play_count': listen_q.play_count, 'listens': listen_q.play_count})
                     continue
                 if listen_q.total_ms and listen_q.total_ms > 0:
                     # Score by minutes listened (round to integer minutes for display)
                     minutes = int(listen_q.minutes())
-                    results.append({'username': u.username, 'score': minutes, 'minutes': minutes})
+                    results.append({'username': u.username, 'score': minutes, 'minutes': minutes, 'listens': minutes})
                     continue
                 continue
             top = get_top_artists(u, time_range='long_term')
@@ -995,16 +946,76 @@ def leaderboard_results(request):
                     found_rank = i
                     break
 
+            # We no longer derive a score from Spotify top-artist rank.
+            # Only use database-backed listen counts (ArtistListen) as the authoritative score.
             if found_rank is not None:
-                score = max(0, 100 - found_rank)
-                results.append({'username': u.username, 'score': score, 'rank': found_rank + 1})
+                # Record the rank for informational purposes but do not create a synthetic 0-100 score.
+                results.append({'username': u.username, 'rank': found_rank + 1})
         except Exception:
             continue
 
-    # Sort by score desc then rank asc
-    results.sort(key=lambda x: (-x['score'], x['rank']))
-    top10 = results[:10]
+    # Prefer database-backed listen counts (play_count or total minutes) when
+    # available. We'll place users with a DB 'listens' metric at the top and
+    # compute ranks from that; fall back to the previously-computed 'rank'
+    # (derived from Spotify top-artist position) for the remaining users.
+    listened = [r for r in results if r.get('listens') is not None]
+    others = [r for r in results if r.get('listens') is None]
+
+    final = []
+    if listened:
+        # sort by listens desc and assign ranks starting at 1
+        listened.sort(key=lambda x: -x['listens'])
+        for i, r in enumerate(listened, start=1):
+            r['rank'] = i
+            # keep score for compatibility (higher is better)
+            r['score'] = r.get('score', r['listens'])
+            final.append(r)
+
+    if others:
+        # For users without DB-backed listens, treat score as 0 and keep their informational rank if available.
+        for r in others:
+            r['score'] = 0
+        # Sort remaining users by rank ascending (more relevant ranks first), and append after listened users
+        others.sort(key=lambda x: (x.get('rank') or 10**9))
+        offset = len(final)
+        for i, r in enumerate(others, start=1):
+            # assign ranks after listened users; if no informational rank, place at the end
+            orig_rank = r.get('rank') or (10**9)
+            r['rank'] = offset + i if orig_rank >= 10**9 else offset + orig_rank
+            final.append(r)
+
+    top10 = final[:10]
     return JsonResponse({'results': top10})
+
+# views.py
+from django.contrib.auth.decorators import login_required
+from django.db.models import Q
+from django.shortcuts import render
+
+@login_required
+def messages_index(request):
+    """Show a list of recent conversations for the current user."""
+    from .models import Message  # local import to avoid cycles
+    me = request.user
+
+    # Pull all messages involving the current user, newest first.
+    qs = (Message.objects
+          .filter(Q(sender=me) | Q(recipient=me))
+          .select_related('sender', 'recipient')
+          .order_by('-created_at'))
+
+    # Keep only the latest message per counterpart.
+    latest_by_other = {}
+    for m in qs:
+        other = m.recipient if m.sender_id == me.id else m.sender
+        # First time we see 'other' is the newest message due to ordering.
+        if other.id not in latest_by_other:
+            latest_by_other[other.id] = {'other': other, 'last': m}
+
+    # Convert to a list (already sorted by recency thanks to the loop).
+    conversations = list(latest_by_other.values())
+
+    return render(request, 'messages.html', {'conversations': conversations})
 
 
 @login_required
@@ -1261,15 +1272,17 @@ def discussion(request):
         except Exception:
             user_reaction = 0
 
-        # Author avatar (if available)
+        # Author avatar (if available) - prefer the Profile.image field
         try:
             author_avatar_url = None
-            pav = getattr(p.author, 'profile_avatar', None)
-            if pav and getattr(pav, 'avatar', None):
+            prof = getattr(p.author, 'profile', None)
+            if prof and getattr(prof, 'image', None) and getattr(prof.image, 'name', None):
                 try:
-                    author_avatar_url = pav.avatar.url
+                    author_avatar_url = prof.image.url
                 except Exception:
                     author_avatar_url = None
+            else:
+                author_avatar_url = None
         except Exception:
             author_avatar_url = None
 
@@ -1279,12 +1292,14 @@ def discussion(request):
             # comment author avatar
             try:
                 c_avatar_url = None
-                cpav = getattr(c.author, 'profile_avatar', None)
-                if cpav and getattr(cpav, 'avatar', None):
+                cprof = getattr(c.author, 'profile', None)
+                if cprof and getattr(cprof, 'image', None) and getattr(cprof.image, 'name', None):
                     try:
-                        c_avatar_url = cpav.avatar.url
+                        c_avatar_url = cprof.image.url
                     except Exception:
                         c_avatar_url = None
+                else:
+                    c_avatar_url = None
             except Exception:
                 c_avatar_url = None
             c_likes = c.reactions.filter(value=Reaction.LIKE).count()
@@ -1473,79 +1488,84 @@ def get_all_users(request):
 
 @login_required
 def set_display_song(request):
-    """AJAX endpoint to set or clear the current user's profile.display_song JSON field.
-       Expects POST JSON: { action: 'set', track: {...} } or { action: 'clear' }
+    """Endpoint to set the current display song for a user.
+
+    Accepts POST with either JSON body {"song": {...}} or form field 'song' (JSON string).
+    Saves into Profile.display_song JSONField.
     """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'POST required'}, status=400)
 
     try:
-        data = json.loads(request.body.decode('utf-8'))
-    except Exception:
-        data = request.POST or {}
+        data = None
+        # Try JSON body first
+        try:
+            data = json.loads(request.body.decode('utf-8') or '{}')
+        except Exception:
+            data = request.POST or {}
 
-    action = data.get('action')
-    try:
+        song = data.get('song') or data.get('display_song')
+        if not song:
+            return JsonResponse({'success': False, 'error': 'missing_song'}, status=400)
+
         from .models import Profile
         profile = Profile.objects.filter(user=request.user).first()
         if not profile:
             profile = Profile.objects.create(user=request.user)
 
-        if action == 'clear':
-            profile.display_song = None
-            profile.save()
-            return JsonResponse({'success': True})
+        # If song is a string, try to parse it as JSON
+        if isinstance(song, str):
+            try:
+                song = json.loads(song)
+            except Exception:
+                # Not JSON; store as-is under a simple dict
+                song = {'name': song}
 
-        if action == 'set':
-            track = data.get('track') or {}
-            # store a subset to reduce DB size
-            stored = {
-                'id': track.get('id'),
-                'name': track.get('name'),
-                'artist': track.get('artist'),
-                'album_art': track.get('album_art')
-            }
-            profile.display_song = stored
-            profile.save()
-            return JsonResponse({'success': True})
-
-        return JsonResponse({'success': False, 'error': 'invalid_action'}, status=400)
+        profile.display_song = song
+        profile.save()
+        return JsonResponse({'success': True, 'display_song': profile.display_song})
     except Exception as e:
-        logger.exception('set_display_song error')
+        logger.exception('set_display_song failed')
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @login_required
 def search_track(request):
-    """Search tracks using Spotify API if the user has tokens; otherwise return empty list."""
-    q = request.GET.get('q', '').strip()
+    """Simple endpoint used by some front-end features. Returns empty results if not implemented."""
+    q = request.GET.get('q') or request.POST.get('q')
     if not q:
-        return JsonResponse({'tracks': []})
+        return JsonResponse({'results': []})
 
+    # Use the current user's Spotify token to perform the search when possible
     token = get_token(request.user)
     if not token:
-        return JsonResponse({'tracks': []})
+        return JsonResponse({'results': [], 'error': 'no_token'}, status=403)
+
+    headers = get_auth_header(request.user)
+    if not headers:
+        return JsonResponse({'results': [], 'error': 'no_token'}, status=403)
 
     try:
         url = 'https://api.spotify.com/v1/search'
-        headers = get_auth_header(request.user)
-        params = {'q': q, 'type': 'track', 'limit': 8}
-        resp = requests.get(url, headers=headers, params=params)
+        params = {'q': q, 'type': 'track', 'limit': 10}
+        resp = requests.get(url, headers=headers, params=params, timeout=10)
         if resp.status_code != 200:
-            return JsonResponse({'tracks': []})
-        js = resp.json()
-        items = js.get('tracks', {}).get('items', [])
+            return JsonResponse({'results': []})
+        data = resp.json()
         tracks = []
-        for it in items:
+        for t in data.get('tracks', {}).get('items', []):
             tracks.append({
-                'id': it.get('id'),
-                'name': it.get('name'),
-                'artist': ', '.join([a.get('name') for a in it.get('artists', [])]),
-                'album_art': it.get('album', {}).get('images', [{}])[0].get('url')
+                'id': t.get('id'),
+                'name': t.get('name'),
+                'artists': ', '.join([a.get('name') for a in t.get('artists', [])]),
+                'album_art': (t.get('album', {}).get('images') or [{}])[0].get('url'),
+                'preview_url': t.get('preview_url'),
+                'spotify_uri': t.get('uri')
             })
-        return JsonResponse({'tracks': tracks})
-    except Exception:
-        return JsonResponse({'tracks': []})
+        return JsonResponse({'results': tracks})
+    except Exception as e:
+        logger.exception('search_track failed')
+        return JsonResponse({'results': []})
 
 
 @login_required
@@ -1601,3 +1621,135 @@ def api_swipe_action(request):
 
     # Here you'd persist the seen/like and possibly create friendships; just return success
     return JsonResponse({'success': True, 'action': action, 'username': username})
+
+
+@login_required
+def chat(request, username):
+    other = get_object_or_404(get_user_model(), username=username)
+    is_friend = Friendship.objects.filter(
+        Q(user1=request.user, user2=other) | Q(user1=other, user2=request.user)
+    ).exists()
+    if not is_friend and request.user != other:
+        return HttpResponseForbidden('Not friends')
+
+    from .models import Message
+    chat_qs = Message.objects.filter(
+        (Q(sender=request.user) & Q(recipient=other)) | (Q(sender=other) & Q(recipient=request.user))
+    ).select_related('sender', 'recipient')
+
+    # Prepare message dicts for initial template render so we can include parsed track objects
+    messages_for_template = []
+    import json as _json
+    for m in chat_qs:
+        img_url = None
+        try:
+            if m.image:
+                img_url = m.image.url
+        except Exception:
+            img_url = None
+        track_obj = None
+        try:
+            parsed = _json.loads(m.content) if m.content else None
+            if isinstance(parsed, dict) and parsed.get('id') and parsed.get('name'):
+                track_obj = parsed
+        except Exception:
+            track_obj = None
+
+        messages_for_template.append({
+            'id': m.id,
+            'sender': m.sender.username,
+            'content': m.content,
+            'created_at': m.created_at,
+            'image_url': img_url,
+            'track': track_obj,
+        })
+
+    return render(request, 'chat.html', {'friend': other, 'chat_messages': messages_for_template})
+
+
+@login_required
+def send_message(request, username):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=400)
+    to_user = get_object_or_404(get_user_model(), username=username)
+    if not Friendship.objects.filter(
+        Q(user1=request.user, user2=to_user) | Q(user1=to_user, user2=request.user)
+    ).exists() and request.user != to_user:
+        return JsonResponse({'success': False, 'error': 'Not friends'}, status=403)
+    # Accept either text content, an uploaded image, or both
+    content = (request.POST.get('content') or request.POST.get('message') or '')
+    content = content.strip()
+    uploaded_image = request.FILES.get('image')
+    track_json = request.POST.get('track_json')
+
+    # If a track is provided, store the JSON string as the content (client will render it)
+    if track_json:
+        content = track_json
+
+    if not content and not uploaded_image:
+        return JsonResponse({'success': False, 'error': 'empty'}, status=400)
+
+    from .models import Message
+    if uploaded_image:
+        m = Message.objects.create(sender=request.user, recipient=to_user, content=content or '', image=uploaded_image)
+    else:
+        m = Message.objects.create(sender=request.user, recipient=to_user, content=content or '')
+
+    image_url = None
+    try:
+        if m.image:
+            image_url = request.build_absolute_uri(m.image.url)
+    except Exception:
+        image_url = None
+
+    return JsonResponse({'success': True, 'message_id': m.id, 'created_at': m.created_at.isoformat(), 'image_url': image_url})
+
+
+@login_required
+def get_messages(request, username):
+    other = get_object_or_404(get_user_model(), username=username)
+    if not Friendship.objects.filter(
+        Q(user1=request.user, user2=other) | Q(user1=other, user2=request.user)
+    ).exists() and request.user != other:
+        return JsonResponse({'success': False, 'error': 'Not friends'}, status=403)
+    after = request.GET.get('after')
+    from .models import Message
+    qs = Message.objects.filter(
+        (Q(sender=request.user) & Q(recipient=other)) | (Q(sender=other) & Q(recipient=request.user))
+    ).order_by('created_at')
+    if after:
+        try:
+            from django.utils.dateparse import parse_datetime
+            dt = parse_datetime(after)
+            if dt:
+                qs = qs.filter(created_at__gt=dt)
+        except Exception:
+            pass
+    msgs = []
+    for m in qs:
+        img = None
+        try:
+            if m.image:
+                img = request.build_absolute_uri(m.image.url)
+        except Exception:
+            img = None
+        # If the stored content looks like JSON for a track, parse it and include as 'track'
+        track_obj = None
+        try:
+            import json as _json
+            parsed = _json.loads(m.content) if m.content else None
+            if isinstance(parsed, dict) and parsed.get('id') and parsed.get('name'):
+                track_obj = parsed
+        except Exception:
+            track_obj = None
+
+        msgs.append({
+            'id': m.id,
+            'sender': m.sender.username,
+            'recipient': m.recipient.username,
+            'content': m.content,
+            'created_at': m.created_at.isoformat(),
+            'image_url': img,
+            'track': track_obj
+        })
+    return JsonResponse({'success': True, 'messages': msgs})

@@ -1,0 +1,47 @@
+<!-- templates/messages.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Messages — Matchify</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-black text-white min-h-screen">
+  <header class="bg-gray-900 border-b border-gray-800 p-4">
+    <div class="max-w-4xl mx-auto flex items-center justify-between">
+      <a href="{% url 'home' %}" class="text-blue-400 hover:text-blue-300">← Back</a>
+      <h1 class="text-lg font-semibold">Messages</h1>
+      <div class="w-16"></div>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto p-4">
+    {% if conversations %}
+      <ul class="divide-y divide-gray-800">
+        {% for row in conversations %}
+          {% with other=row.other last=row.last %}
+          <li class="py-4">
+            <a href="{% url 'chat' other.username %}" class="flex items-center gap-4 group">
+              <div class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-lg">
+                {{ other.username|slice:":1"|upper }}
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <span class="font-medium group-hover:underline">{{ other.username }}</span>
+                  <span class="text-xs text-gray-400">
+                    {{ last.created_at|date:"M j, g:i A" }}
+                  </span>
+                </div>
+                <p class="text-sm text-gray-400 truncate">{{ last.content }}</p>
+              </div>
+            </a>
+          </li>
+          {% endwith %}
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-gray-400">No conversations yet. Find a friend and start a chat from their profile.</p>
+    {% endif %}
+  </main>
+</body>
+</html>

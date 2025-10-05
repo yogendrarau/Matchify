@@ -10,7 +10,7 @@
     <!-- Header -->
     <header class="bg-gray-800 p-4 fixed w-full top-0 z-10">
         <div class="max-w-4xl mx-auto flex justify-between items-center">
-            <a href="{% url 'profile' %}" class="text-blue-500 hover:text-blue-400">
+            <a href="{% url 'profile' friend.username %}" class="text-blue-500 hover:text-blue-400">
                 ← Back to Profile
             </a>
             <h1 class="text-xl font-semibold">Chat with {{ friend.username }}</h1>
@@ -22,9 +22,27 @@
     <div class="flex-1 overflow-y-auto pt-20 pb-24" id="chat-messages">
         <div class="max-w-4xl mx-auto p-4">
             {% for message in chat_messages %}
-                <div class="mb-4 flex {% if message.sender == request.user %}justify-end{% endif %}">
-                    <div class="{% if message.sender == request.user %}bg-blue-600{% else %}bg-gray-700{% endif %} rounded-lg px-4 py-2 max-w-[70%]">
-                        <p class="text-sm">{{ message.content }}</p>
+                <div class="mb-4 flex {% if message.sender == request.user.username %}justify-end{% endif %}" data-message-id="{{ message.id }}">
+                    <div class="{% if message.sender == request.user.username %}bg-blue-600{% else %}bg-gray-700{% endif %} rounded-lg px-4 py-2 max-w-[70%]">
+                        {% if message.image_url %}
+                            <div class="mb-2">
+                                <img src="{{ message.image_url }}" alt="image" class="max-w-full h-auto rounded" />
+                            </div>
+                        {% endif %}
+                        {% if message.track %}
+                            <div class="mb-2 flex items-center gap-3">
+                                <img src="{{ message.track.album_art }}" class="w-12 h-12 rounded" />
+                                <div class="flex-1 text-left">
+                                    <div class="font-semibold">{{ message.track.name }}</div>
+                                    <div class="text-xs text-gray-400">{{ message.track.artists }}</div>
+                                </div>
+                            </div>
+                            {% if message.track.preview_url %}
+                                <audio controls src="{{ message.track.preview_url }}" class="w-full mt-1"></audio>
+                            {% endif %}
+                        {% else %}
+                            <p class="text-sm">{{ message.content }}</p>
+                        {% endif %}
                         <p class="text-xs text-gray-400 mt-1">{{ message.created_at|date:"g:i A" }}</p>
                     </div>
                 </div>
@@ -34,24 +52,57 @@
 
     <!-- Message Input -->
     <div class="fixed bottom-0 w-full bg-gray-800 p-4">
-        <form id="message-form" class="max-w-4xl mx-auto flex gap-2">
+                <form id="message-form" class="max-w-4xl mx-auto flex gap-2 flex-col" enctype="multipart/form-data">
             {% csrf_token %}
-            <input type="text" 
-                   id="message-input"
-                   class="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                   placeholder="Type your message...">
-            <button type="submit"
-                    class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors">
-                Send
-            </button>
+                 <div class="flex gap-2">
+                     <input type="text" 
+                             id="message-input"
+                             name="content"
+                             class="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                             placeholder="Type your message...">
+                        <label class="flex items-center gap-2">
+                            <input type="file" id="message-image" name="image" accept="image/*" class="hidden" onchange="document.getElementById('image-name').textContent = this.files[0] ? this.files[0].name : ''" />
+                            <button type="button" class="bg-gray-600 hover:bg-gray-500 text-white px-3 py-2 rounded-lg" onclick="document.getElementById('message-image').click()">📎</button>
+                            <span id="image-name" class="text-xs text-gray-300"></span>
+                        </label>
+                 </div>
+         
+                        <div class="flex items-center gap-2">
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors">Send</button>
+                            <button type="button" id="open-track-panel" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg">🎵</button>
+                        </div>
         </form>
     </div>
+
+        <!-- Right-side track search panel (hidden by default) -->
+        <div id="track-panel" class="fixed right-0 top-0 h-full w-96 bg-[#0b0d0f] border-l border-gray-800 shadow-lg transform translate-x-full transition-transform z-30">
+            <div class="p-4 flex items-center justify-between border-b border-gray-800">
+                <div class="text-lg font-semibold">Send a Track</div>
+                <button id="close-track-panel" class="text-gray-400 hover:text-white">✕</button>
+            </div>
+            <div class="p-4">
+                <div class="flex gap-2">
+                    <input id="track-panel-input" class="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2" placeholder="Search tracks..." />
+                    <button type="button" id="track-panel-search-btn" class="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg">Search</button>
+                </div>
+                <div id="track-panel-results" class="mt-4 space-y-2"></div>
+            </div>
+        </div>
 
     <script>
         const messageForm = document.getElementById('message-form');
         const messageInput = document.getElementById('message-input');
-        const messagesContainer = document.getElementById('chat-messages');
-        let lastMessageTime = '{{ chat_messages.last.created_at|date:"Y-m-d H:i:s" }}';
+    const messagesContainer = document.getElementById('chat-messages');
+    // inner container where server-rendered message elements live
+    const messagesInner = messagesContainer.querySelector('.max-w-4xl');
+    let lastMessageTime = "{% if chat_messages %}{{ chat_messages.last.created_at|date:'c'|escapejs }}{% else %}{% endif %}";
+
+        // Track message IDs we've already rendered to avoid duplicates
+        const seenMessageIds = new Set();
+        document.querySelectorAll('[data-message-id]').forEach(el => {
+            const id = el.getAttribute('data-message-id');
+            if (id) seenMessageIds.add(id);
+        });
 
         // Scroll to bottom initially
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -59,19 +110,22 @@
         messageForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const content = messageInput.value.trim();
-            if (!content) return;
+            const fileInput = document.getElementById('message-image');
+            const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+            if (!content && !hasFile) return;
 
             try {
+                const formData = new FormData(messageForm);
                 const response = await fetch('{% url "send_message" friend.username %}', {
                     method: 'POST',
-                    headers: {
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: new FormData(messageForm)
+                    credentials: 'same-origin',
+                    body: formData
                 });
 
                 if (response.ok) {
                     messageInput.value = '';
+                    if (fileInput) fileInput.value = '';
+                    document.getElementById('image-name').textContent = '';
                     await fetchNewMessages();
                 }
             } catch (error) {
@@ -79,21 +133,66 @@
             }
         });
 
+        // Ensure the Send button triggers the form submit handler even if default behavior is interrupted
+        (function ensureSendButtonWiresSubmit(){
+            try {
+                const sendBtn = messageForm.querySelector('button[type="submit"]');
+                if (sendBtn) {
+                    sendBtn.addEventListener('click', (ev) => {
+                        ev.preventDefault();
+                        if (typeof messageForm.requestSubmit === 'function') {
+                            messageForm.requestSubmit();
+                        } else {
+                            // Fallback: dispatch submit event
+                            messageForm.dispatchEvent(new Event('submit', {cancelable: true, bubbles: true}));
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn('Could not wire send button click -> submit', e);
+            }
+        })();
+
         async function fetchNewMessages() {
             try {
                 const response = await fetch(`{% url "get_messages" friend.username %}?after=${lastMessageTime}`);
                 const data = await response.json();
 
                 data.messages.forEach(message => {
+                    // Skip messages we've already seen (pre-rendered or previously appended)
+                    if (seenMessageIds.has(String(message.id))) return;
+                    seenMessageIds.add(String(message.id));
+
                     const messageElement = document.createElement('div');
+                    messageElement.setAttribute('data-message-id', message.id);
                     messageElement.className = `mb-4 flex ${message.sender === '{{ request.user.username }}' ? 'justify-end' : ''}`;
-                    messageElement.innerHTML = `
-                        <div class="${message.sender === '{{ request.user.username }}' ? 'bg-blue-600' : 'bg-gray-700'} rounded-lg px-4 py-2 max-w-[70%]">
-                            <p class="text-sm">${message.content}</p>
-                            <p class="text-xs text-gray-400 mt-1">${new Date(message.created_at).toLocaleTimeString()}</p>
-                        </div>
-                    `;
-                    messagesContainer.appendChild(messageElement);
+                    let inner = `<div class="${message.sender === '{{ request.user.username }}' ? 'bg-blue-600' : 'bg-gray-700'} rounded-lg px-4 py-2 max-w-[70%]">`;
+                    if (message.image_url) {
+                        inner += `<div class="mb-2"><img src="${message.image_url}" alt="img" class="max-w-full h-auto rounded"/></div>`;
+                    }
+                    // Prefer server-parsed `message.track` (if present) for track messages
+                    let contentRendered = '';
+                    if (message.track) {
+                        const parsed = message.track;
+                        contentRendered = `<div class="mb-2 flex items-center gap-3">
+                                <img src="${parsed.album_art || ''}" class="w-12 h-12 rounded" />
+                                <div class="flex-1 text-left">
+                                  <div class="font-semibold">${parsed.name}</div>
+                                  <div class="text-xs text-gray-400">${parsed.artists || ''}</div>
+                                </div>
+                              </div>`;
+                        if (parsed.preview_url) {
+                            contentRendered += `<audio controls src="${parsed.preview_url}" class="w-full mt-1"></audio>`;
+                        }
+                    } else {
+                        // Fallback: render the raw content (text or previously stored JSON)
+                        contentRendered = `<p class="text-sm">${message.content || ''}</p>`;
+                    }
+
+                    inner += contentRendered + `<p class="text-xs text-gray-400 mt-1">${new Date(message.created_at).toLocaleTimeString()}</p></div>`;
+                    messageElement.innerHTML = inner;
+                    // Append new messages into the same inner wrapper the server uses
+                    (messagesInner || messagesContainer).appendChild(messageElement);
                 });
 
                 if (data.messages.length > 0) {
@@ -107,6 +206,70 @@
 
         // Poll for new messages every 3 seconds
         setInterval(fetchNewMessages, 3000);
+
+        // Track search panel logic
+        const trackPanel = document.getElementById('track-panel');
+        const openTrackBtn = document.getElementById('open-track-panel');
+        const closeTrackBtn = document.getElementById('close-track-panel');
+        const panelInput = document.getElementById('track-panel-input');
+        const panelBtn = document.getElementById('track-panel-search-btn');
+        const panelResults = document.getElementById('track-panel-results');
+
+        function openTrackPanel() {
+            trackPanel.classList.remove('translate-x-full');
+        }
+        function closeTrackPanel() {
+            trackPanel.classList.add('translate-x-full');
+        }
+
+        openTrackBtn.addEventListener('click', openTrackPanel);
+        closeTrackBtn.addEventListener('click', closeTrackPanel);
+
+        panelBtn.addEventListener('click', async () => {
+            const q = panelInput.value.trim();
+            panelResults.innerHTML = '';
+            if (!q) return;
+            try {
+                const resp = await fetch(`{% url 'search_track' %}?q=${encodeURIComponent(q)}`);
+                const data = await resp.json();
+                (data.results || []).forEach(t => {
+                    const item = document.createElement('div');
+                    item.className = 'p-2 bg-gray-900 rounded flex items-center gap-3 cursor-pointer';
+                    item.innerHTML = `
+                        <img src="${t.album_art || ''}" class="w-12 h-12 rounded" />
+                        <div class="flex-1 text-left">
+                          <div class="font-semibold">${t.name}</div>
+                          <div class="text-xs text-gray-400">${t.artists}</div>
+                        </div>
+                        <div class="text-sm text-green-400">Send</div>
+                    `;
+                    item.addEventListener('click', async () => {
+                        const trackJson = JSON.stringify(t);
+                        const fd = new FormData();
+                        fd.append('track_json', trackJson);
+                        // include CSRF token from the main message form
+                        try {
+                            const csrfInput = document.querySelector('#message-form input[name="csrfmiddlewaretoken"]');
+                            if (csrfInput && csrfInput.value) fd.append('csrfmiddlewaretoken', csrfInput.value);
+                        } catch (e) {
+                            // ignore
+                        }
+                        const r = await fetch('{% url "send_message" friend.username %}', {method: 'POST', credentials: 'same-origin', body: fd});
+                        if (r.ok) {
+                            panelResults.innerHTML = '';
+                            panelInput.value = '';
+                            closeTrackPanel();
+                            await fetchNewMessages();
+                        } else {
+                            console.error('Failed to send track', r.status, await r.text());
+                        }
+                    });
+                    panelResults.appendChild(item);
+                });
+            } catch (err) {
+                console.error('track search failed', err);
+            }
+        });
     </script>
 </body>
 </html> 
