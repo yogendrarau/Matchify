@@ -799,6 +799,135 @@ def profile(request, username):
 
 
 @login_required
+def leaderboard_autocomplete(request):
+    """Return a small list of artist suggestions for autocomplete using Spotify search.
+
+    Query params:
+    - q: partial artist name
+    """
+    q = request.GET.get('q', '').strip()
+    if not q:
+        return JsonResponse({'results': []})
+
+    # Use the current user's Spotify token to perform the search when possible
+    try:
+        token = get_token(request.user)
+        if not token:
+            return JsonResponse({'results': []})
+        # search_for_artist expects a token object in this codebase
+        artist = search_for_artist(request.user, q)
+        if not artist:
+            return JsonResponse({'results': []})
+        # Return a small list (Spotify search returned best match); format for frontend
+        return JsonResponse({'results': [{'id': artist.get('id'), 'name': artist.get('name')}]})
+    except Exception:
+        return JsonResponse({'results': []})
+
+
+@login_required
+def leaderboard_results(request):
+    """Compute a school-local leaderboard for a given artist.
+
+    Accepts either `artist_id` or `artist_name` as GET params. Returns top 10 users
+    from the current user's 'school' (inferred from email domain) ranked by how highly
+    the artist appears in their top artists (long_term). This is an approximation when
+    play counts are not stored server-side.
+    """
+    artist_id = request.GET.get('artist_id')
+    artist_name = request.GET.get('artist_name')
+    if not (artist_id or artist_name):
+        return JsonResponse({'results': []})
+
+    User = get_user_model()
+    current = request.user
+
+    # Infer school from email domain (everything after '@'), fallback to all users
+    school_domain = None
+    try:
+        if current.email and '@' in current.email:
+            school_domain = current.email.split('@', 1)[1].lower()
+    except Exception:
+        school_domain = None
+
+    if school_domain:
+        candidates = User.objects.filter(email__iendswith='@' + school_domain, is_active=True)
+    else:
+        candidates = User.objects.filter(is_active=True)
+
+    from .models import ArtistListen
+
+    results = []
+    # For scoring: we'll call get_top_artists(user, time_range='long_term') and
+    # if the artist is present at rank r (0-based), score = 100 - r (higher is better).
+    for u in candidates:
+        try:
+            # Prefer an aggregated listening time if we have it in ArtistListen.
+            listen_q = None
+            if artist_id:
+                listen_q = ArtistListen.objects.filter(user=u, artist_id=artist_id).first()
+            if not listen_q and artist_name:
+                listen_q = ArtistListen.objects.filter(user=u, artist_name__iexact=artist_name).first()
+            if listen_q:
+                # Prefer play_count if available (how many times recent-play included artist)
+                if getattr(listen_q, 'play_count', None) and listen_q.play_count > 0:
+                    results.append({'username': u.username, 'score': listen_q.play_count, 'play_count': listen_q.play_count})
+                    continue
+                if listen_q.total_ms and listen_q.total_ms > 0:
+                    # Score by minutes listened (round to integer minutes for display)
+                    minutes = int(listen_q.minutes())
+                    results.append({'username': u.username, 'score': minutes, 'minutes': minutes})
+                    continue
+                continue
+            top = get_top_artists(u, time_range='long_term')
+            if isinstance(top, dict) and top.get('Error'):
+                continue
+            # top is list of artist dicts
+            found_rank = None
+            for i, a in enumerate(top or []):
+                if artist_id and a.get('id') == artist_id:
+                    found_rank = i
+                    break
+                if artist_name and a.get('name', '').lower() == artist_name.lower():
+                    found_rank = i
+                    break
+
+            if found_rank is not None:
+                score = max(0, 100 - found_rank)
+                results.append({'username': u.username, 'score': score, 'rank': found_rank + 1})
+        except Exception:
+            continue
+
+    # Sort by score desc then rank asc
+    results.sort(key=lambda x: (-x['score'], x['rank']))
+    top10 = results[:10]
+    return JsonResponse({'results': top10})
+
+
+@login_required
+def leaderboard_page(request):
+    """Render a standalone leaderboard page for an artist. Accepts artist_id or artist_name as GET params.
+    Reuses leaderboard_results logic to compute results and passes them to a template.
+    """
+    artist_id = request.GET.get('artist_id')
+    artist_name = request.GET.get('artist_name')
+    # Reuse the results function to get JSON, but call logic inline to avoid extra HTTP
+    resp = leaderboard_results(request)
+    try:
+        data = resp.content
+        # resp is a JsonResponse; get the dict
+        import json as _json
+        parsed = _json.loads(data)
+    except Exception:
+        parsed = {'results': []}
+
+    return render(request, 'leaderboard.html', {
+        'artist_name': artist_name,
+        'artist_id': artist_id,
+        'results': parsed.get('results', [])
+    })
+
+
+@login_required
 def upload_profile_image(request):
     """Handle AJAX profile image uploads for the current user."""
     if request.method != 'POST':
@@ -954,6 +1083,22 @@ def discussion(request):
             dislikes_count=Count(Case(When(reactions__value=Reaction.DISLIKE, then=1), output_field=IntegerField())),
         )
     )
+    # Apply ordering based on the `sort` query parameter. Supported values:
+    # - 'newest' (default): most recent first
+    # - 'oldest': oldest first
+    # - 'most_liked': order by likes_count desc (ties by newest)
+    sort = request.GET.get('sort', 'newest')
+    try:
+        if sort == 'oldest':
+            posts_qs = posts_qs.order_by('created_at')
+        elif sort == 'most_liked':
+            posts_qs = posts_qs.order_by('-likes_count', '-created_at')
+        else:
+            # default / 'newest'
+            posts_qs = posts_qs.order_by('-created_at')
+    except Exception:
+        # If ordering fails for any reason, fall back to default ordering
+        posts_qs = posts_qs.order_by('-created_at')
     posts = []
     for p in posts_qs:
         image_exists = False
