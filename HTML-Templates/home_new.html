@@ -18,6 +18,8 @@
         <div id="dropdownMenu" class="hidden absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg py-2 z-50">
             <!-- My Profile -->
             <a id="open-profile-link" href="{% url 'profile' user.username %}" class="w-full block text-left px-4 py-2 hover:bg-gray-700 text-white">My Profile</a>
+            <!-- Friends (network) -->
+            <a id="open-friends-link" href="{% url 'friends' %}" class="w-full block text-left px-4 py-2 hover:bg-gray-700 text-white">Friends</a>
             <!-- Logout -->
             <form action="logout" method="post" class="border-t border-gray-700">
                 {% csrf_token %}

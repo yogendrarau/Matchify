@@ -798,6 +798,71 @@ def profile(request, username):
 
 
 @login_required
+def friends(request):
+    """Render a standalone friends page listing current user's friends and actions."""
+    current_user = request.user
+    User = get_user_model()
+
+    # Find friendships where current_user is user1 or user2
+    friendships = Friendship.objects.filter(user1=current_user) | Friendship.objects.filter(user2=current_user)
+
+    # Collect friend user objects
+    friends = set()
+    for f in friendships:
+        friends.add(f.user1)
+        friends.add(f.user2)
+    friends.discard(current_user)
+
+    # For each friend prepare display data
+    friends_list = []
+    for u in friends:
+        friends_list.append({
+            'username': u.username,
+            'id': u.id,
+        })
+
+    # Incoming friend requests (to current user)
+    incoming_qs = FriendRequest.objects.filter(to_user=current_user)
+    incoming = []
+    for r in incoming_qs:
+        incoming.append({
+            'from_username': r.from_user.username,
+            'from_id': r.from_user.id,
+        })
+
+    # Sent friend requests (from current user)
+    sent_qs = FriendRequest.objects.filter(from_user=current_user)
+    sent = []
+    for r in sent_qs:
+        sent.append({
+            'to_username': r.to_user.username,
+            'to_id': r.to_user.id,
+        })
+
+    return render(request, 'friends.html', {
+        'friends': friends_list,
+        'incoming_requests': incoming,
+        'sent_requests': sent,
+    })
+
+
+@login_required
+def cancel_friend_request(request, username):
+    """Cancel a friend request that the current user sent to `username`."""
+    if request.method != 'POST':
+        return redirect('friends')
+
+    to_user = get_object_or_404(get_user_model(), username=username)
+    try:
+        fr = FriendRequest.objects.filter(from_user=request.user, to_user=to_user).first()
+        if fr:
+            fr.delete()
+    except Exception:
+        pass
+    return redirect('friends')
+
+
+@login_required
 def upload_profile_image(request):
     """Handle AJAX profile image uploads for the current user."""
     if request.method != 'POST':

@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block title %}Friends - Matchify{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-b from-black via-[#0c0c0c] to-[#121212] text-white px-4 py-8">
+  <div class="max-w-4xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-3xl font-semibold">Friends</h1>
+      <a href="{% url 'mapify' %}" class="text-sm text-green-400 hover:underline">Find more →</a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <!-- Current Friends -->
+      <div class="bg-[#0f1113] border border-gray-800 p-4 rounded-lg shadow-md">
+        <h2 class="text-lg font-semibold mb-3 text-white">Current Friends</h2>
+        {% if friends and friends|length > 0 %}
+          <ul class="space-y-3">
+            {% for f in friends %}
+              <li class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                  <div class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center font-bold text-white">{{ f.username|slice:":1"|upper }}</div>
+                  <div class="text-white">{{ f.username }}</div>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <form method="post" action="{% url 'remove_friend' f.username %}">
+                    {% csrf_token %}
+                    <button type="submit" class="bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded-full transition transform hover:scale-105">Remove</button>
+                  </form>
+                  <a href="{% url 'profile' f.username %}" class="bg-gray-800 hover:bg-gray-700 text-white py-1 px-3 rounded-full">View</a>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-gray-400">You have no friends yet.</p>
+        {% endif %}
+      </div>
+
+      <!-- Incoming Friend Requests -->
+      <div class="bg-[#0f1113] border border-gray-800 p-4 rounded-lg shadow-md">
+        <h2 class="text-lg font-semibold mb-3 text-white">Incoming Requests</h2>
+        {% if incoming_requests and incoming_requests|length > 0 %}
+          <ul class="space-y-3">
+            {% for r in incoming_requests %}
+              <li class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                  <div class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center font-bold text-white">{{ r.from_username|slice:":1"|upper }}</div>
+                  <div class="text-white">{{ r.from_username }}</div>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <form method="post" action="{% url 'accept_friend_request' r.from_username %}">
+                    {% csrf_token %}
+                    <button type="submit" class="bg-green-500 hover:bg-green-600 text-white py-1 px-3 rounded-full transition transform hover:scale-105">Accept</button>
+                  </form>
+                  <form method="post" action="{% url 'reject_friend_request' r.from_username %}">
+                    {% csrf_token %}
+                    <button type="submit" class="bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded-full transition transform hover:scale-105">Reject</button>
+                  </form>
+                  <a href="{% url 'profile' r.from_username %}" class="bg-gray-800 hover:bg-gray-700 text-white py-1 px-3 rounded-full">View</a>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-gray-400">No incoming requests.</p>
+        {% endif %}
+      </div>
+
+      <!-- Sent Requests -->
+      <div class="bg-[#0f1113] border border-gray-800 p-4 rounded-lg shadow-md">
+        <h2 class="text-lg font-semibold mb-3 text-white">Sent Requests</h2>
+        {% if sent_requests and sent_requests|length > 0 %}
+          <ul class="space-y-3">
+            {% for r in sent_requests %}
+              <li class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                  <div class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center font-bold text-white">{{ r.to_username|slice:":1"|upper }}</div>
+                  <div class="text-white">{{ r.to_username }}</div>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <form method="post" action="{% url 'cancel_friend_request' r.to_username %}">
+                    {% csrf_token %}
+                    <button type="submit" class="bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-3 rounded-full transition transform hover:scale-105">Cancel</button>
+                  </form>
+                  <a href="{% url 'profile' r.to_username %}" class="bg-gray-800 hover:bg-gray-700 text-white py-1 px-3 rounded-full">View</a>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-gray-400">No sent requests.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
