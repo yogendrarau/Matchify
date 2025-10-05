@@ -40,6 +40,10 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.contrib.auth import authenticate, login as auth_login
 from .forms import LoginForm
+from .models import Comment, Post
+from .forms import CommentForm
+from .models import Reaction
+from django.views.decorators.http import require_POST
 
 
 
@@ -961,9 +965,136 @@ def discussion(request):
                         image_exists = False
         except Exception:
             image_exists = False
-        posts.append({'post': p, 'image_exists': image_exists})
+        # Reaction counts
+        likes = p.reactions.filter(value=Reaction.LIKE).count()
+        dislikes = p.reactions.filter(value=Reaction.DISLIKE).count()
+        # Current user's reaction value or 0
+        try:
+            user_reaction_obj = p.reactions.filter(user=request.user).first() if request.user.is_authenticated else None
+            user_reaction = user_reaction_obj.value if user_reaction_obj else 0
+        except Exception:
+            user_reaction = 0
+
+        # Author avatar (if available)
+        try:
+            author_avatar_url = None
+            pav = getattr(p.author, 'profile_avatar', None)
+            if pav and getattr(pav, 'avatar', None):
+                try:
+                    author_avatar_url = pav.avatar.url
+                except Exception:
+                    author_avatar_url = None
+        except Exception:
+            author_avatar_url = None
+
+        # Prepare comments with reaction counts
+        comments_with_counts = []
+        for c in p.comments.all():
+            # comment author avatar
+            try:
+                c_avatar_url = None
+                cpav = getattr(c.author, 'profile_avatar', None)
+                if cpav and getattr(cpav, 'avatar', None):
+                    try:
+                        c_avatar_url = cpav.avatar.url
+                    except Exception:
+                        c_avatar_url = None
+            except Exception:
+                c_avatar_url = None
+            c_likes = c.reactions.filter(value=Reaction.LIKE).count()
+            c_dislikes = c.reactions.filter(value=Reaction.DISLIKE).count()
+            try:
+                c_user_reaction_obj = c.reactions.filter(user=request.user).first() if request.user.is_authenticated else None
+                c_user_reaction = c_user_reaction_obj.value if c_user_reaction_obj else 0
+            except Exception:
+                c_user_reaction = 0
+            comments_with_counts.append({
+                'comment': c,
+                'likes': c_likes,
+                'dislikes': c_dislikes,
+                'user_reaction': c_user_reaction,
+                'avatar_url': c_avatar_url,
+            })
+
+        posts.append({
+            'post': p,
+            'image_exists': image_exists,
+            'likes': likes,
+            'dislikes': dislikes,
+            'user_reaction': user_reaction,
+            'comments': comments_with_counts,
+            'author_avatar_url': author_avatar_url,
+        })
 
     return render(request, 'discussion.html', {'form': form, 'posts': posts})
+
+
+@login_required
+def add_comment(request, post_id):
+    """Handle creation of a comment for a given post."""
+    post = get_object_or_404(Post, id=post_id)
+    if request.method == 'POST':
+        form = CommentForm(request.POST)
+        if form.is_valid():
+            comment = form.save(commit=False)
+            comment.post = post
+            comment.author = request.user
+            comment.save()
+            # Redirect to the discussion page and jump to the newly created comment so it's visible.
+            try:
+                from django.urls import reverse
+                return redirect(reverse('discussion') + f'#comment-{comment.id}')
+            except Exception:
+                return redirect('discussion')
+    return redirect('discussion')
+
+
+@login_required
+def react(request, post_id):
+    """Handle like/dislike reactions for posts. Expects POST with 'value' = '1' or '-1'."""
+    # This view handles reactions targeted at posts (post_id) or comments (comment_id passed via POST)
+    target_comment_id = request.POST.get('comment_id')
+    if target_comment_id:
+        # Reacting to a comment
+        comment = get_object_or_404(Comment, id=target_comment_id)
+        try:
+            v = int(request.POST.get('value'))
+            if v not in (1, -1):
+                return redirect('discussion')
+        except (TypeError, ValueError):
+            return redirect('discussion')
+
+        reaction, created = Reaction.objects.update_or_create(
+            comment=comment,
+            user=request.user,
+            defaults={'value': v}
+        )
+
+        if not created and reaction.value == v:
+            reaction.delete()
+
+        return redirect('discussion')
+    else:
+        # Reacting to a post
+        post = get_object_or_404(Post, id=post_id)
+        if request.method == 'POST':
+            try:
+                v = int(request.POST.get('value'))
+                if v not in (1, -1):
+                    return redirect('discussion')
+            except (TypeError, ValueError):
+                return redirect('discussion')
+
+            reaction, created = Reaction.objects.update_or_create(
+                post=post,
+                user=request.user,
+                defaults={'value': v}
+            )
+
+            if not created and reaction.value == v:
+                reaction.delete()
+
+        return redirect('discussion')
 
 def calculate_compatibility(user1, user2):
     try:

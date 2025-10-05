@@ -2,6 +2,8 @@
 
 {% block title %}Discussion - Matchify{% endblock %}
 
+{% load static %}
+
 {% block head %}
 <style>
 /* subtle green glow matching home page green (Tailwind green-500) */
@@ -40,12 +42,47 @@
         </form>
     </div>
 
+    <!-- Filter controls: placed right below Create a Post and above the posts list (moved to left) -->
+    <div class="max-w-4xl mx-auto mb-4 flex items-center">
+        <div class="flex items-center space-x-3">
+            <button class="px-4 py-2 bg-gray-800 text-white rounded-md font-medium border border-gray-700">Filter</button>
+
+            <div class="relative group">
+                <button class="text-blue-500 hover:text-blue-600 focus:outline-none flex items-center" aria-label="Sort options">
+                    <!-- filter icon -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M3 5h18v2H3V5zm4 6h10v2H7v-2zm6 6v2H7v-2h6z"/>
+                    </svg>
+                </button>
+
+                <!-- dropdown appears on hover of the parent (.group) -->
+                <div class="absolute left-0 mt-2 w-56 bg-gray-900 text-white rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto z-50">
+                    <div class="px-4 py-2 text-sm font-semibold border-b border-gray-800">Sort By:</div>
+                    <ul class="text-sm">
+                        <li><a href="?sort=newest" class="block px-4 py-2 hover:bg-gray-800">Newest to Oldest</a></li>
+                        <li><a href="?sort=oldest" class="block px-4 py-2 hover:bg-gray-800">Oldest to Newest</a></li>
+                        <li><a href="?sort=most_liked" class="block px-4 py-2 hover:bg-gray-800">Most Liked</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="space-y-4">
         {% for item in posts %}
-            {% with post=item.post image_exists=item.image_exists %}
+            {% with post=item.post image_exists=item.image_exists likes=item.likes dislikes=item.dislikes user_reaction=item.user_reaction comments=item.comments %}
             <div class="bg-gray-800 p-4 rounded-lg">
                 <div class="flex items-center justify-between mb-2">
-                    <div class="font-semibold text-blue-500">{{ post.author.username }}</div>
+                    <div class="flex items-center space-x-3">
+                        {% if author_avatar_url %}
+                            <img src="{{ author_avatar_url }}" alt="{{ post.author.username }} avatar" class="w-8 h-8 rounded-full object-cover" onerror="this.style.display='none'" />
+                        {% else %}
+                            <!-- try static avatar at /static/avatars/<username>.png, otherwise show initial -->
+                            <img src="{% static 'avatars/' %}{{ post.author.username }}.png" alt="{{ post.author.username }} avatar" class="w-8 h-8 rounded-full object-cover" onerror="this.style.display='none'" />
+                            <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm text-white">{{ post.author.username|slice:":1"|upper }}</div>
+                        {% endif %}
+                        <a href="{% url 'profile' post.author.username %}" class="font-semibold text-blue-500">{{ post.author.username }}</a>
+                    </div>
                     <div class="text-xs text-gray-400">{{ post.created_at }}</div>
                 </div>
                 <div class="text-gray-200">{{ post.content|linebreaksbr }}</div>
@@ -58,6 +95,87 @@
                 {% elif post.image and not image_exists %}
                     <div class="mt-3 text-sm text-gray-400 italic">Image not available</div>
                 {% endif %}
+                <!-- Reaction buttons -->
+                <div class="mt-3 flex items-center space-x-4">
+                    <form action="{% url 'react' post.id %}" method="post" class="inline-flex items-center">
+                        {% csrf_token %}
+                        <input type="hidden" name="value" value="1" />
+                        <button type="submit" title="Like" class="flex items-center space-x-2 text-blue-500 hover:brightness-110">
+                            <!-- Thumbs up -->
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-5 h-5 fill-current" aria-hidden="true">
+                                <path d="M2 21h4V9H2v12zM22 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 2 7.59 7.59C7.22 7.95 7 8.45 7 9v9c0 1.1.9 2 2 2h7c.82 0 1.54-.5 1.84-1.22L22 10z"/>
+                            </svg>
+                            <span class="text-sm text-blue-500">{{ likes }}</span>
+                        </button>
+                    </form>
+
+                    <form action="{% url 'react' post.id %}" method="post" class="inline-flex items-center">
+                        {% csrf_token %}
+                        <input type="hidden" name="value" value="-1" />
+                        <button type="submit" title="Dislike" class="flex items-center space-x-2 text-blue-500 hover:brightness-110">
+                            <!-- Thumbs up rotated 180deg to act as thumbs down -->
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-5 h-5 fill-current transform rotate-180" aria-hidden="true">
+                                <path d="M2 21h4V9H2v12zM22 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 2 7.59 7.59C7.22 7.95 7 8.45 7 9v9c0 1.1.9 2 2 2h7c.82 0 1.54-.5 1.84-1.22L22 10z"/>
+                            </svg>
+                            <span class="text-sm text-blue-500">{{ dislikes }}</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Comments list -->
+                <div class="mt-4 space-y-3">
+                    {% for c in comments %}
+                        {% with comment=c.comment likes=c.likes dislikes=c.dislikes user_reaction=c.user_reaction %}
+                        <div id="comment-{{ comment.id }}" class="bg-gray-900 p-3 rounded">
+                            <div class="flex items-start justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2">
+                                        {% if c.avatar_url %}
+                                            <img src="{{ c.avatar_url }}" alt="{{ comment.author.username }} avatar" class="w-6 h-6 rounded-full object-cover" onerror="this.style.display='none'" />
+                                        {% else %}
+                                            <img src="{% static 'avatars/' %}{{ comment.author.username }}.png" alt="{{ comment.author.username }} avatar" class="w-6 h-6 rounded-full object-cover" onerror="this.style.display='none'" />
+                                            <div class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-xs text-white">{{ comment.author.username|slice:":1"|upper }}</div>
+                                        {% endif %}
+                                        <div class="text-sm text-blue-400 font-semibold"><a href="{% url 'profile' comment.author.username %}">{{ comment.author.username }}</a> <span class="text-xs text-gray-400">· {{ comment.created_at }}</span></div>
+                                    </div>
+                                    <div class="text-gray-200 text-sm mt-1">{{ comment.content|linebreaksbr }}</div>
+                                </div>
+                                <div class="ml-4 flex flex-col items-center space-y-2">
+                                    <form action="{% url 'react' post.id %}" method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="comment_id" value="{{ comment.id }}" />
+                                        <input type="hidden" name="value" value="1" />
+                                        <button type="submit" title="Like comment" class="flex items-center space-x-1 text-blue-500">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-4 h-4 fill-current" aria-hidden="true"><path d="M2 21h4V9H2v12zM22 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 2 7.59 7.59C7.22 7.95 7 8.45 7 9v9c0 1.1.9 2 2 2h7c.82 0 1.54-.5 1.84-1.22L22 10z"/></svg>
+                                            <span class="text-xs text-blue-500">{{ likes }}</span>
+                                        </button>
+                                    </form>
+                                    <form action="{% url 'react' post.id %}" method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="comment_id" value="{{ comment.id }}" />
+                                        <input type="hidden" name="value" value="-1" />
+                                        <button type="submit" title="Dislike comment" class="flex items-center space-x-1 text-blue-500">
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-4 h-4 fill-current transform rotate-180" aria-hidden="true"><path d="M2 21h4V9H2v12zM22 10c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L13.17 2 7.59 7.59C7.22 7.95 7 8.45 7 9v9c0 1.1.9 2 2 2h7c.82 0 1.54-.5 1.84-1.22L22 10z"/></svg>
+                                            <span class="text-xs text-blue-500">{{ dislikes }}</span>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                        {% endwith %}
+                    {% empty %}
+                        <!-- no comments -->
+                    {% endfor %}
+                </div>
+
+                <!-- Comment form -->
+                <div class="mt-3">
+                    <form action="{% url 'add_comment' post.id %}" method="post" class="flex items-start space-x-3">
+                        {% csrf_token %}
+                        <textarea name="content" rows="2" placeholder="Write a comment..." class="w-full p-2 rounded bg-gray-900 text-white placeholder-gray-400 text-sm"></textarea>
+                        <button type="submit" class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded">Reply</button>
+                    </form>
+                </div>
             </div>
             {% endwith %}
         {% empty %}
@@ -81,6 +199,21 @@
                     const file = fileInput.files[0];
                     filenameDisplay.textContent = file ? file.name : 'No file chosen';
                 });
+            }
+        });
+    </script>
+
+    <script>
+        // Smooth-scroll to comment anchor if present in URL after redirect
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.location.hash) {
+                const el = document.querySelector(window.location.hash);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    // Optionally add a brief highlight
+                    el.classList.add('ring', 'ring-green-400');
+                    setTimeout(() => el.classList.remove('ring', 'ring-green-400'), 1800);
+                }
             }
         });
     </script>
