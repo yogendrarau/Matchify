@@ -2,147 +2,118 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Matchify</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .message-popup {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: #f87171;
-            /* Red color */
-            color: white;
-            padding: 10px 20px;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 1000;
-            animation: slideIn 0.5s ease-out;
-            gap: 10px;
-            /* Add space between message and close button */
-        }
-
-        .message-popup button {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 16px;
-            cursor: pointer;
-            padding: 0;
-            /* Remove default padding */
-            margin: 0;
-            /* Remove default margin */
-        }
-
-        @keyframes slideIn {
-            from {
-                top: -50px;
-                opacity: 0;
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Login - Matchify</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <style>
+            .message-popup {
+                    background-color: #f87171; /* red */
+                    color: white;
+                    padding: 10px 14px;
+                    border-radius: 8px;
+                    box-shadow: 0 6px 20px rgba(2,6,23,0.6);
             }
-
-            to {
-                top: 20px;
-                opacity: 1;
-            }
-        }
-    </style>
+            .fade-up { animation: fadeUp 600ms ease both; }
+            @keyframes fadeUp { from { opacity: 0; transform: translateY(8px);} to { opacity: 1; transform: translateY(0);} }
+        </style>
 </head>
 
-<body class="bg-black text-white min-h-screen flex items-center justify-center">
-    <div class="text-center max-w-md p-6 bg-gray-800 rounded-lg shadow-lg">
-        <!-- Header -->
-        <h1 class="text-4xl font-bold text-green-500 mb-4">Login</h1>
-        <!-- Messages -->
-        <div id="messages"></div>
-        <!-- Login Form -->
-        <form id="loginForm" method="POST" class="mb-4">
-            {% csrf_token %}
-            <div class="mb-4">
-                <label for="username" class="block text-sm font-medium text-white">Username or Email</label>
-                <input type="text" name="username" id="username"
-                    class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
-            </div>
-            <div class="mb-4">
-                <label for="password" class="block text-sm font-medium text-white">Password</label>
-                <input type="password" name="password" id="password"
-                    class="mt-1 block w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm">
-            </div>
-            <div class="mb-4">
-                {{ form.captcha }}
-            </div>
-            <button type="submit"
-                class="bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-6 rounded-full shadow-md transition-transform transform hover:scale-105 w-full">
-                Login
-            </button>
-        </form>
-        <div class="text-center mt-4">
-            <a href="{% url 'password_reset' %}" class="text-blue-400 hover:underline">Forgot your password?</a>
+<body class="min-h-screen bg-gradient-to-b from-black via-[#0c0c0c] to-[#121212] flex items-center justify-center text-white px-4">
+    <div class="w-full max-w-md">
+        <div class="text-center mb-6 fade-up">
+            <h1 class="text-5xl font-extrabold bg-gradient-to-r from-green-400 to-emerald-600 bg-clip-text text-transparent drop-shadow">Matchify</h1>
+            <p class="text-gray-400 mt-1">Welcome back — let’s vibe.</p>
         </div>
-        <!-- Register Button -->
-        <form action="register">
-            <button type="submit"
-                class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-full shadow-md transition-transform transform hover:scale-105 w-full">
-                No account? Register Instead!
-            </button>
-        </form>
+
+        <div class="bg-[#1a1d21]/70 border border-gray-700 backdrop-blur-md rounded-2xl shadow-xl overflow-hidden fade-up">
+            <div class="p-6">
+                <!-- Messages -->
+                <div id="messages" class="space-y-2 mb-3"></div>
+
+                <form id="loginForm" method="POST" class="space-y-4">
+                    {% csrf_token %}
+
+                    <div>
+                        <label for="username" class="block text-sm text-gray-300 mb-1">Username or Email</label>
+                        <input id="username" name="username" type="text" placeholder="you@music.com"
+                            class="w-full rounded-xl bg-[#0f1216] border border-gray-700 px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-inner" />
+                    </div>
+
+                    <div>
+                        <label for="password" class="block text-sm text-gray-300 mb-1">Password</label>
+                        <input id="password" name="password" type="password" placeholder="••••••••"
+                            class="w-full rounded-xl bg-[#0f1216] border border-gray-700 px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent shadow-inner" />
+                    </div>
+
+                    <div id="captcha-slot">
+                        {{ form.captcha }}
+                    </div>
+
+                    <button type="submit" class="w-full py-5 rounded-xl text-base font-semibold bg-gradient-to-r from-green-400 to-emerald-600 hover:scale-[1.02] transition-transform shadow-md">Login</button>
+                </form>
+
+                <div class="flex items-center justify-between mt-4 text-sm">
+                    <a href="{% url 'password_reset' %}" class="text-indigo-400 hover:underline">Forgot password?</a>
+                    <a href="{% url 'register' %}" class="text-fuchsia-400 hover:underline">Create account</a>
+                </div>
+
+                <div class="flex items-center gap-4 my-6">
+                    <div class="flex-1 h-px bg-gray-700"></div>
+                    <span class="text-gray-400 text-xs">or</span>
+                    <div class="flex-1 h-px bg-gray-700"></div>
+                </div>
+
+                <a href="{% url 'auth-url' %}" class="block w-full text-center py-4 rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:scale-[1.02] transition-transform font-medium">Continue with Spotify</a>
+            </div>
+        </div>
     </div>
+
     <script>
+        // Attach AJAX submit similar to previous implementation
         document.getElementById('loginForm').addEventListener('submit', function (event) {
-            event.preventDefault(); // Prevent the form from submitting the traditional way
+            event.preventDefault();
             var form = event.target;
             var formData = new FormData(form);
             var submitButton = form.querySelector('button[type="submit"]');
+            var messagesDiv = document.getElementById('messages');
 
-            // Disable the submit button and show loading state
             submitButton.disabled = true;
             submitButton.innerHTML = 'Logging in...';
 
-            fetch(form.action, {
+            fetch(form.action || window.location.pathname, {
                 method: 'POST',
                 body: formData,
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRFToken': form.querySelector('[name=csrfmiddlewaretoken]').value, // Add CSRF token
+                    'X-CSRFToken': form.querySelector('[name=csrfmiddlewaretoken]').value,
                 },
             })
-                .then(response => response.json())
-                .then(data => {
-                    var messagesDiv = document.getElementById('messages');
-                    messagesDiv.innerHTML = ''; // Clear previous messages
-
-                    if (data.success) {
-                        window.location.href = data.redirect_url; // Redirect on success
-                    } else {
-                        // Display error messages
-                        if (data.messages) {
-                            data.messages.forEach(message => {
-                                var messagePopup = document.createElement('div');
-                                messagePopup.className = 'message-popup';
-                                // Add a space between the message and the close button
-                                messagePopup.innerHTML = `<span>${message}</span> <button onclick="this.parentElement.style.display='none';">&times;</button>`;
-                                messagesDiv.appendChild(messagePopup);
-                            });
-                        }
+            .then(response => response.json())
+            .then(data => {
+                messagesDiv.innerHTML = '';
+                if (data.success) {
+                    window.location.href = data.redirect_url || '/';
+                } else {
+                    if (data.messages) {
+                        data.messages.forEach(message => {
+                            var messageEl = document.createElement('div');
+                            messageEl.className = 'message-popup';
+                            messageEl.innerHTML = `<span>${message}</span> <button onclick="this.parentElement.remove();">&times;</button>`;
+                            messagesDiv.appendChild(messageEl);
+                        });
                     }
-                    if (data.reset_captcha) {
-                        grecaptcha.reset();  // Reset the reCAPTCHA widget
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    var messagesDiv = document.getElementById('messages');
-                    messagesDiv.innerHTML = '<div class="message-popup">An unexpected error occurred. Please try again.</div>';
-                })
-                .finally(() => {
-                    // Re-enable the submit button and reset its text
-                    submitButton.disabled = false;
-                    submitButton.innerHTML = 'Login';
-                });
+                }
+                if (data.reset_captcha && typeof grecaptcha !== 'undefined') grecaptcha.reset();
+            })
+            .catch(err => {
+                messagesDiv.innerHTML = '<div class="message-popup">An unexpected error occurred. Please try again.</div>';
+                console.error('Login error', err);
+            })
+            .finally(() => {
+                submitButton.disabled = false;
+                submitButton.innerHTML = 'Login';
+            });
         });
     </script>
 </body>

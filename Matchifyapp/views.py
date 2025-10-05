@@ -148,10 +148,14 @@ def get_current_track(user):
         return None
 
 def home(request):
-    current_track = None
-    if request.user.is_authenticated:
-        current_track = get_current_track(request.user)
-    return render(request, "home.html", {'current_track': current_track})
+    # Require authentication to view home. Redirect unauthenticated users to login.
+    if not request.user.is_authenticated:
+        # include next so users return to home after login
+        return redirect(f"{reverse('login')}?next=/")
+
+    current_track = get_current_track(request.user)
+    # Render the new home UI template that matches the provided React layout
+    return render(request, "home_new.html", {'current_track': current_track})
 
 def cleanup_expired_otps():
     OtpToken.objects.filter(otp_expires_at__lt=timezone.now()).delete()

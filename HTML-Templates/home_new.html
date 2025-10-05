@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% block title %}Matchify{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-b from-black via-[#0c0c0c] to-[#121212] flex flex-col items-center justify-center text-white px-4">
+  {% if user.is_authenticated %}
+    <!-- Menu Button and Dropdown (Top Right) -->
+    <div class="absolute top-4 right-4">
+      <div class="relative">
+        <!-- Circle Menu Button -->
+        <button onclick="toggleDropdown(event)" 
+                class="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 focus:outline-none">
+            <span class="text-xl">☰</span>
+        </button>
+
+        <!-- Dropdown Menu -->
+        <div id="dropdownMenu" class="hidden absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg py-2 z-50">
+            <!-- My Profile -->
+            <a id="open-profile-link" href="{% url 'profile' user.username %}" class="w-full block text-left px-4 py-2 hover:bg-gray-700 text-white">My Profile</a>
+            <!-- Logout -->
+            <form action="logout" method="post" class="border-t border-gray-700">
+                {% csrf_token %}
+                <button type="submit" class="w-full text-left px-4 py-2 hover:bg-gray-700 text-white">Logout</button>
+            </form>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+  <!-- Title Section -->
+  <div class="text-center mb-10 animate-fade-in">
+    <h1 class="text-6xl font-extrabold bg-gradient-to-r from-green-400 to-emerald-600 bg-clip-text text-transparent drop-shadow-lg">Matchify</h1>
+    <p class="text-gray-400 text-lg mt-2 tracking-wide">Connect through music</p>
+  </div>
+
+  <!-- Now Playing Card -->
+  <div class="mb-6">
+    <div class="bg-[#1a1d21]/70 border border-gray-700 backdrop-blur-md shadow-lg w-80 sm:w-[450px] rounded-2xl">
+      <div class="p-6 text-center">
+        <h2 class="text-green-400 text-xl font-semibold mb-2">Currently Listening</h2>
+        {% if current_track %}
+          <div class="flex flex-col items-center gap-2">
+            {% if current_track.album_art %}
+              <img src="{{ current_track.album_art }}" alt="Album art" class="w-28 h-28 rounded-lg object-cover shadow-md" />
+            {% endif %}
+            <p class="text-white font-medium">{{ current_track.name }}</p>
+            <p class="text-gray-400 text-sm">{{ current_track.artist }}</p>
+            <p class="text-xs text-gray-500">{{ current_track.album }}</p>
+          </div>
+        {% else %}
+          <p class="text-gray-400 text-sm">Currently not playing music</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Welcome -->
+  <h2 class="mt-4 text-2xl sm:text-3xl font-semibold">Welcome, <span class="text-green-400">{% if request.user.is_authenticated %}{{ request.user.username }}{% else %}guest{% endif %}</span></h2>
+
+  <!-- Buttons -->
+  <div class="mt-8 flex flex-col gap-5 w-72 sm:w-96">
+    <form action="{% url 'mapify' %}" method="get">
+      <button type="submit" class="bg-gradient-to-r from-purple-500 to-fuchsia-600 text-white font-semibold py-4 rounded-xl shadow-md hover:scale-105 transition-transform duration-200 w-full">View Network</button>
+    </form>
+
+    <form action="{% url 'auth-url' %}" method="get">
+      <button type="submit" class="bg-gradient-to-r from-green-400 to-emerald-600 text-white font-semibold py-4 rounded-xl shadow-md hover:scale-105 transition-transform duration-200 w-full">Authenticate with Spotify</button>
+    </form>
+
+    <form action="{% url 'discussion' %}" method="get">
+      <button type="submit" class="bg-gradient-to-r from-indigo-500 to-blue-600 text-white font-semibold py-4 rounded-xl shadow-md hover:scale-105 transition-transform duration-200 w-full">Discussions</button>
+    </form>
+
+    <form action="{% url 'swipe' %}" method="get">
+      <button type="submit" class="bg-gradient-to-r from-yellow-400 to-amber-500 text-black font-semibold py-4 rounded-xl shadow-md hover:scale-105 transition-transform duration-200 w-full">Discover</button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<style>
+  /* small fade-in for title */
+  .animate-fade-in { animation: fadeInUp 700ms ease both; }
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(-12px);} to { opacity: 1; transform: translateY(0);} }
+</style>
+<script>
+  function toggleDropdown(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('dropdownMenu');
+    if (menu) menu.classList.toggle('hidden');
+  }
+
+  document.addEventListener('click', function(e) {
+    const menu = document.getElementById('dropdownMenu');
+    const btn = document.querySelector('[onclick="toggleDropdown(event)"]');
+    if (!menu || !btn) return;
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+      menu.classList.add('hidden');
+    }
+  });
+
+  // Auto-refresh current track similar to previous home.html (if authenticated and spotify connected)
+  async function refreshCurrentTrack() {
+    try {
+      const res = await fetch('/get-current-track');
+      if (!res.ok) return;
+      const data = await res.json();
+      const container = document.querySelector('[data-current-track-container]');
+      if (!container) return;
+      if (data.track) {
+        container.innerHTML = `\n          <div class="flex items-center space-x-4">\n            ${data.track.album_art ? `<img src="${data.track.album_art}" alt="Album Art" class="w-16 h-16 rounded-lg shadow-md">` : ''}\n            <div>\n              <p class="text-lg font-semibold text-white">${data.track.name}</p>\n              <p class="text-sm text-gray-400">${data.track.artist}</p>\n              <p class="text-xs text-gray-500">${data.track.album}</p>\n            </div>\n          </div>`;
+      } else {
+        container.innerHTML = '<p class="text-gray-400 text-sm">Currently not playing music</p>';
+      }
+    } catch (err) {
+      console.error('refreshCurrentTrack error', err);
+    }
+  }
+
+  // Attempt to refresh every 5s when on the home page and user is authenticated
+  {% if request.user.is_authenticated and request.user.spotify_tokens.exists %}
+    refreshCurrentTrack();
+    setInterval(refreshCurrentTrack, 5000);
+  {% endif %}
+</script>
+{% endblock %}
