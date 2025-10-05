@@ -987,20 +987,21 @@ def discussion(request):
             dislikes = int(getattr(p, 'dislikes_count', 0) or 0)
         except Exception:
             dislikes = 0
+
         # Current user's reaction value or 0
-            # Determine current user's reaction without extra DB queries if possible.
+        # Determine current user's reaction without extra DB queries if possible.
+        user_reaction = 0
+        try:
+            if request.user.is_authenticated:
+                # Try to use prefetched reactions first
+                try:
+                    reactions = list(p.reactions.all())
+                    urr = next((r for r in reactions if r.user_id == request.user.id), None)
+                except Exception:
+                    urr = p.reactions.filter(user=request.user).first()
+                user_reaction = urr.value if urr else 0
+        except Exception:
             user_reaction = 0
-            try:
-                if request.user.is_authenticated:
-                    # Try to use prefetched reactions first
-                    try:
-                        reactions = list(p.reactions.all())
-                        urr = next((r for r in reactions if r.user_id == request.user.id), None)
-                    except Exception:
-                        urr = p.reactions.filter(user=request.user).first()
-                    user_reaction = urr.value if urr else 0
-            except Exception:
-                user_reaction = 0
 
         # Author avatar (if available)
         try:
@@ -1099,6 +1100,16 @@ def react(request, post_id):
 
         if not created and reaction.value == v:
             reaction.delete()
+
+        # If AJAX request, return JSON with updated counts for the comment
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or getattr(request, 'is_ajax', lambda: False)():
+            try:
+                likes = comment.reactions.filter(value=Reaction.LIKE).count()
+                dislikes = comment.reactions.filter(value=Reaction.DISLIKE).count()
+            except Exception:
+                likes = 0
+                dislikes = 0
+            return JsonResponse({'success': True, 'likes': likes, 'dislikes': dislikes})
 
         return redirect('discussion')
     else:

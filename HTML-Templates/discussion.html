@@ -13,45 +13,7 @@
 </style>
 {% endblock %}
 
-{% block extra_scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function(){
-    // Intercept reaction forms and submit via fetch
-    document.querySelectorAll('form[action^="/react/"]').forEach(form => {
-        form.addEventListener('submit', function(e){
-            e.preventDefault();
-            const url = form.getAttribute('action');
-            const formData = new FormData(form);
-            // send AJAX
-            fetch(url, {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRFToken': form.querySelector('[name=csrfmiddlewaretoken]').value
-                },
-                body: formData
-            }).then(r => r.json()).then(data => {
-                if (data && data.success) {
-                    // find the likes/dislikes span(s) nearby and update
-                    const likesSpan = form.querySelector('span');
-                    // fallback: find sibling spans for counts
-                    if (likesSpan && data.likes !== undefined) likesSpan.textContent = data.likes;
-                    // update other button count (dislike) by searching parent container
-                    const parent = form.closest('.bg-gray-800, .bg-gray-900');
-                    if (parent) {
-                        parent.querySelectorAll('button > span').forEach((sp, idx) => {
-                            // Attempt to map first button -> likes, second -> dislikes
-                            if (idx === 0 && data.likes !== undefined) sp.textContent = data.likes;
-                            if (idx === 1 && data.dislikes !== undefined) sp.textContent = data.dislikes;
-                        });
-                    }
-                }
-            }).catch(console.error);
-        });
-    });
-});
-</script>
-{% endblock %}
+{# AJAX interceptor script moved to the bottom scripts block so it loads correctly. #}
 {% block content %}
 <div class="max-w-4xl mx-auto py-12">
             <h1 class="text-3xl font-bold text-center mb-6 text-green-500 glow-green">Community Discussion</h1>
@@ -257,4 +219,81 @@ document.addEventListener('DOMContentLoaded', function(){
         });
     </script>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+    // Attach handlers immediately if DOM already loaded, otherwise wait for DOMContentLoaded.
+    const attach = () => {
+        console.log('[discussion] attaching delegated submit handler');
+        // Use event delegation: listen for submit events on the document and intercept
+        // those whose form action contains '/react/'. This is robust to timing/order.
+        document.addEventListener('submit', function(e){
+            try {
+                const form = e.target && (e.target.nodeName === 'FORM' ? e.target : e.target.closest('form'));
+                if (!form) return;
+                const action = form.getAttribute('action') || '';
+                if (action.indexOf('/react/') === -1) return; // not a reaction form
+
+                e.preventDefault();
+                const url = action;
+                const formData = new FormData(form);
+
+                const csrfEl = form.querySelector('[name=csrfmiddlewaretoken]');
+                const csrf = csrfEl ? csrfEl.value : '';
+
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': csrf
+                    },
+                    body: formData
+                }).then(r => r.text().then(t => {
+                    try { return JSON.parse(t); } catch (e) { console.error('[discussion] non-json response', t); return null; }
+                })).then(data => {
+                    if (data && data.success) {
+                        // If this was a comment reaction, prefer updating the specific comment container
+                        const commentInput = form.querySelector('input[name="comment_id"]');
+                        if (commentInput) {
+                            const cid = commentInput.value;
+                            const commentEl = document.getElementById('comment-' + cid);
+                            if (commentEl) {
+                                const spans = commentEl.querySelectorAll('button > span');
+                                if (spans.length > 0) {
+                                    if (data.likes !== undefined && spans[0]) spans[0].textContent = data.likes;
+                                    if (data.dislikes !== undefined && spans[1]) spans[1].textContent = data.dislikes;
+                                }
+                            }
+                        } else {
+                            // Post-level reaction: update the surrounding post container
+                            const postContainer = form.closest('.bg-gray-800, .bg-gray-900');
+                            if (postContainer) {
+                                const spans = postContainer.querySelectorAll('button > span');
+                                if (spans.length > 0) {
+                                    if (data.likes !== undefined && spans[0]) spans[0].textContent = data.likes;
+                                    if (data.dislikes !== undefined && spans[1]) spans[1].textContent = data.dislikes;
+                                }
+                            } else {
+                                const likesSpan = form.querySelector('span');
+                                if (likesSpan && data.likes !== undefined) likesSpan.textContent = data.likes;
+                            }
+                        }
+                    }
+                }).catch(err => console.error('[discussion] fetch error', err));
+
+            } catch (err) {
+                console.error('[discussion] submit handler error', err);
+            }
+        }, true);
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', attach);
+    } else {
+        attach();
+    }
+})();
+</script>
 {% endblock %}
