@@ -914,6 +914,12 @@ def upload_profile_image(request):
     except Exception:
         image_url = ''
 
+    # Log upload/store details for debugging
+    try:
+        logger.info(f"upload_profile_image: user={request.user.username} saved image name={getattr(profile_obj.image, 'name', None)} url={image_url}")
+    except Exception:
+        pass
+
     return JsonResponse({'success': True, 'image_url': image_url})
 
 
