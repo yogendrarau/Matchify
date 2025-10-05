@@ -77,9 +77,9 @@
                         </form>
                     </div>
                 {% else %}
-                    <form action="{% url 'send_friend_request' user_data.user.username %}" method="post">
+                    <form id="send-friend-form" action="{% url 'send_friend_request' user_data.user.username %}" method="post">
                         {% csrf_token %}
-                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Add Friend</button>
+                        <button id="add-friend-btn" type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Add Friend</button>
                     </form>
                 {% endif %}
             </div>
@@ -332,6 +332,61 @@ document.addEventListener('DOMContentLoaded', function () {
     } catch (err) {
         console.error('Error wiring bio edit buttons', err);
     }
+});
+</script>
+<script>
+// AJAX send-friend form handler: prevents full-page navigation and swaps the UI on success.
+document.addEventListener('DOMContentLoaded', function () {
+    const sendForm = document.getElementById('send-friend-form');
+    if (!sendForm) return;
+
+    function getCsrfToken() {
+        const cookie = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='));
+        return cookie ? cookie.split('=')[1] : '';
+    }
+
+    sendForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const submitBtn = sendForm.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+
+        const formData = new FormData(sendForm);
+        const csrftoken = getCsrfToken();
+
+        try {
+            const resp = await fetch(sendForm.action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData,
+                credentials: 'same-origin',
+                redirect: 'follow'
+            });
+
+            // Try to parse JSON if present
+            let data = null;
+            try { data = await resp.clone().json(); } catch (err) { data = null; }
+
+            // Treat any 2xx or 3xx as success (covers redirects and HTML responses) or explicit JSON success flag
+            if ((data && data.success) || (resp.status >= 200 && resp.status < 400)) {
+                const wrapper = sendForm.parentElement;
+                if (wrapper) {
+                    wrapper.innerHTML = '<p class="text-yellow-500">Friend Request Sent</p>';
+                }
+            } else {
+                let msg = 'Failed to send friend request.';
+                if (data && data.error) msg = data.error;
+                alert(msg);
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        } catch (err) {
+            console.error('Error sending friend request:', err);
+            alert('Network error while sending friend request.');
+            if (submitBtn) submitBtn.disabled = false;
+        }
+    });
 });
 </script>
 {% endblock %}
