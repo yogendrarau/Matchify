@@ -111,6 +111,103 @@
                         <a href="?tracks_range=medium_term" class="px-3 py-1 rounded-md text-xs font-medium {% if user_data.tracks_range == 'medium_term' %}bg-emerald-600 text-white{% else %}bg-[#0c1116] text-gray-300 border border-gray-700{% endif %}">6 Months</a>
                         <a href="?tracks_range=long_term" class="px-3 py-1 rounded-md text-xs font-medium {% if user_data.tracks_range == 'long_term' %}bg-emerald-600 text-white{% else %}bg-[#0c1116] text-gray-300 border border-gray-700{% endif %}">All Time</a>
                     </div>
+                {% else %}
+                    <form id="send-friend-form" action="{% url 'send_friend_request' user_data.user.username %}" method="post">
+                        {% csrf_token %}
+                        <button id="add-friend-btn" type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Add Friend</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        <!-- Main grid -->
+        <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-gray-900 p-4 rounded">
+                <h3 class="text-lg font-medium mb-2 text-white">About</h3>
+                <!-- Display bio (use profile_bio if available) -->
+                <div id="bio-display">
+                    {% if user_data.profile_exists and user_data.profile_bio %}
+                        <p class="text-gray-300" id="bio-text">{{ user_data.profile_bio }}</p>
+                    {% else %}
+                        <p class="text-gray-300" id="bio-text">You haven't added a bio yet. Edit your profile to add one.</p>
+                    {% endif %}
+                </div>
+
+                {% if user_data.is_current_user %}
+                    <div id="bio-edit" class="mt-3 hidden">
+                        <form action="{% url 'edit_bio' %}" method="post">
+                            {% csrf_token %}
+                            <textarea name="bio" rows="4" class="w-full p-2 rounded bg-gray-800 text-gray-200" placeholder="Tell people about yourself...">{{ user_data.profile_bio|default:'' }}</textarea>
+                            <div class="mt-2 flex gap-2">
+                                <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition transform hover:scale-105">Save</button>
+                                <button type="button" id="cancel-bio" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded transition" onclick="toggleBioEdit(false)">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="mt-2">
+                        <button id="edit-bio-btn" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded transition transform hover:scale-105" onclick="toggleBioEdit(true)">Edit</button>
+                    </div>
+                {% endif %}
+
+                <h4 class="mt-6 text-lg font-medium text-white">Top Artists Recently</h4>
+                <div class="mt-2 text-gray-300">
+                    {% if user_data.top_artists %}
+                        <ul class="space-y-2">
+                            {% for artist in user_data.top_artists %}
+                                <li class="flex items-center space-x-3">
+                                    {% if artist.images and artist.images.0.url %}
+                                        <img src="{{ artist.images.0.url }}" alt="{{ artist.name }}" class="w-10 h-10 rounded object-cover" />
+                                    {% else %}
+                                        <div class="w-10 h-10 bg-gray-700 rounded"></div>
+                                    {% endif %}
+                                    <div>
+                                        <div class="font-semibold text-white">{{ artist.name }}</div>
+                                        <div class="text-xs text-gray-400">{{ artist.genres|join:', ' }}</div>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <div class="text-gray-500">No top artists available.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <aside class="space-y-6">
+                <!-- Display Song panel -->
+                <div class="bg-gray-900 p-4 rounded">
+                    <h3 class="text-lg font-medium mb-2 text-white">Favorite Song</h3>
+                    <div id="current-display-song" class="mt-2 text-gray-300">
+                        {% if user_data.display_song %}
+                            <div class="flex items-center space-x-3">
+                                <img src="{{ user_data.display_song.album_art }}" alt="{{ user_data.display_song.name }}" class="w-12 h-12 rounded object-cover" />
+                                <div>`
+                                    <div class="font-semibold text-white">{{ user_data.display_song.name }}</div>
+                                    <div class="text-xs text-gray-400">{{ user_data.display_song.artist }}</div>
+                                </div>
+                                <button id="clear-display-song" class="ml-auto bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm">Clear</button>
+                            </div>
+                        {% else %}
+                            <div class="text-gray-400">No display song set. Search below to choose one.</div>
+                        {% endif %}
+                    </div>
+
+                    {% if user_data.is_current_user %}
+                    <div class="mt-3">
+                        <input id="display-song-search" type="search" placeholder="Search tracks..." class="w-full p-2 rounded bg-gray-800 text-white" />
+                        <div id="display-song-results" class="mt-2 space-y-2"></div>
+                        <div id="display-song-spinner" class="hidden text-sm text-gray-400 mt-2">Searching…</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Top Songs panel -->
+                <div class="bg-gray-900 p-4 rounded self-start h-auto">
+                    <h3 class="text-lg font-medium mb-2 text-white">Top Songs</h3>
+                <div class="flex gap-2 mb-3">
+                    <a href="?tracks_range=short_term" class="tracks-range-btn px-3 py-1 rounded text-sm transition transform hover:scale-105 shadow-sm {% if user_data.tracks_range == 'short_term' %}bg-green-700 text-white ring-2 ring-green-400{% else %}bg-green-600 text-white hover:bg-green-700 hover:brightness-110{% endif %}" data-range="short_term">4 Weeks</a>
+                    <a href="?tracks_range=medium_term" class="tracks-range-btn px-3 py-1 rounded text-sm transition transform hover:scale-105 shadow-sm {% if user_data.tracks_range == 'medium_term' %}bg-green-700 text-white ring-2 ring-green-400{% else %}bg-green-600 text-white hover:bg-green-700 hover:brightness-110{% endif %}" data-range="medium_term">6 Months</a>
+                    <a href="?tracks_range=long_term" class="tracks-range-btn px-3 py-1 rounded text-sm transition transform hover:scale-105 shadow-sm {% if user_data.tracks_range == 'long_term' %}bg-green-700 text-white ring-2 ring-green-400{% else %}bg-green-600 text-white hover:bg-green-700 hover:brightness-110{% endif %}" data-range="long_term">All Time</a>
                 </div>
 
                 <div id="tracks-container" class="max-h-96 overflow-auto pr-2">
@@ -170,6 +267,116 @@ document.addEventListener('DOMContentLoaded', function () {
     if (viewAll) {
         viewAll.addEventListener('click', function () {
             if (spinner) spinner.classList.remove('hidden');
+        });
+    }
+});
+</script>
+<script>
+// Display song search + set handler
+document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.getElementById('display-song-search');
+    const resultsEl = document.getElementById('display-song-results');
+    const spinner = document.getElementById('display-song-spinner');
+    const clearBtn = document.getElementById('clear-display-song');
+
+    function getCsrfToken() {
+        const cookie = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='));
+        return cookie ? cookie.split('=')[1] : '';
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', async function () {
+            const csrftoken = getCsrfToken();
+            try {
+                const res = await fetch('{% url "set_display_song" %}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ action: 'clear' })
+                });
+                if (res.ok) location.reload();
+            } catch (err) { console.error('Error clearing display song', err); }
+        });
+    }
+
+    if (!searchInput) return;
+
+    let timeout = null;
+    searchInput.addEventListener('input', function (e) {
+        const q = searchInput.value.trim();
+        resultsEl.innerHTML = '';
+        if (timeout) clearTimeout(timeout);
+        if (!q) return;
+        timeout = setTimeout(() => doSearch(q), 350);
+    });
+
+    async function doSearch(q) {
+        if (!resultsEl || !spinner) return;
+        spinner.classList.remove('hidden');
+        try {
+            const res = await fetch('/search-track?q=' + encodeURIComponent(q), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!res.ok) {
+                resultsEl.innerHTML = '<div class="text-sm text-red-400">Search failed</div>';
+                return;
+            }
+            const data = await res.json();
+            renderResults(data.tracks || []);
+        } catch (err) {
+            console.error('Search error', err);
+            resultsEl.innerHTML = '<div class="text-sm text-red-400">Search failed</div>';
+        } finally {
+            spinner.classList.add('hidden');
+        }
+    }
+
+    function renderResults(tracks) {
+        if (!resultsEl) return;
+        if (!tracks.length) {
+            resultsEl.innerHTML = '<div class="text-sm text-gray-400">No results</div>';
+            return;
+        }
+        resultsEl.innerHTML = '';
+        tracks.slice(0,8).forEach(t => {
+            const div = document.createElement('div');
+            div.className = 'flex items-center justify-between p-2 bg-gray-800 rounded';
+            div.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <img src="${t.album_art || ''}" class="w-10 h-10 rounded object-cover" />
+                    <div>
+                        <div class="font-semibold text-white">${escapeHtml(t.name)}</div>
+                        <div class="text-xs text-gray-400">${escapeHtml(t.artist)}</div>
+                    </div>
+                </div>
+                <div>
+                    <button data-track='${JSON.stringify(t).replace(/'/g, '&#39;')}' class="set-display-song bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">Set</button>
+                </div>
+            `;
+            resultsEl.appendChild(div);
+        });
+
+        // bind set buttons
+        resultsEl.querySelectorAll('.set-display-song').forEach(btn => {
+            btn.addEventListener('click', async function () {
+                const track = JSON.parse(this.getAttribute('data-track'));
+                const csrftoken = getCsrfToken();
+                try {
+                    const res = await fetch('{% url "set_display_song" %}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest' },
+                        body: JSON.stringify({ action: 'set', track })
+                    });
+                    if (res.ok) location.reload(); else alert('Failed to set display song');
+                } catch (err) {
+                    console.error('Set display song error', err);
+                    alert('Network error');
+                }
+            });
+        });
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>\"']/g, function (s) {
+            return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[s];
         });
     }
 });

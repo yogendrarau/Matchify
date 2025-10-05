@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block title %}Leaderboard - Matchify{% endblock %}
+
+{% load static %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-12">
+    <div class="bg-gray-800 p-6 rounded-lg">
+        <div class="flex items-center justify-between mb-4">
+            <h1 class="text-2xl font-bold">Leaderboard</h1>
+            <a href="{% url 'discussion' %}" class="text-blue-400">Back to Discussion</a>
+        </div>
+        <div class="mb-4 text-gray-300">Top listeners for: <span class="font-semibold text-white">{{ artist_name }}</span></div>
+        <div class="bg-gray-900 rounded-lg p-3">
+            {% if results %}
+                {% for u in results %}
+                    <div class="flex items-center justify-between py-2 border-b border-gray-800">
+                        <div class="font-semibold">{{ forloop.counter }}. {{ u.username }}</div>
+                        <div class="text-gray-400">Score: {{ u.score }}</div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-gray-400">No listeners found in your school for this artist.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
