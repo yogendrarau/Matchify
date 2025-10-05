@@ -7,36 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-black text-white min-h-screen">
-    {% if user.is_authenticated %}
-        <!-- Menu Button and Dropdown (Top Right) -->
-        <div class="absolute top-4 right-4">
-            <div class="relative">
-                <!-- Circle Menu Button -->
-                <button onclick="toggleDropdown()" 
-                        class="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center hover:bg-gray-600 focus:outline-none">
-                    <span class="text-xl">☰</span>
-                </button>
-
-                <!-- Dropdown Menu -->
-                <div id="dropdownMenu" 
-                     class="hidden absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg py-2 z-50">
-                    <!-- My Profile -->
-                    <a id="open-profile-link" href="{% url 'profile' user.username %}" class="w-full block text-left px-4 py-2 hover:bg-gray-700 text-white">
-                        My Profile
-                    </a>
-                    <!-- View Top Artists removed -->
-                    <!-- Logout -->
-                    <form action="logout" method="post" class="border-t border-gray-700">
-                        {% csrf_token %}
-                        <button type="submit" 
-                                class="w-full text-left px-4 py-2 hover:bg-gray-700 text-white">
-                            Logout
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    {% endif %}
+    {# Site-wide dropdown is provided by base.html; per-page duplicate removed #}
 
     <!-- Header -->
     <header class="w-full py-8 text-center">
@@ -81,6 +52,7 @@
                         View Network
                     </button>
                 </form>
+
 
                 <!-- Authenticate with Spotify Button -->
                 <form action="{% url 'auth-url' %}" method="get">

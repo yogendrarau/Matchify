@@ -33,6 +33,7 @@ import requests
 from django.http import JsonResponse
 from django.urls import reverse
 from django.db.models import Q
+from django.db.models import Count, Case, When, IntegerField
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,10 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.contrib.auth import authenticate, login as auth_login
 from .forms import LoginForm
+from .models import Comment, Post
+from .forms import CommentForm
+from .models import Reaction
+from django.views.decorators.http import require_POST
 
 
 
@@ -665,19 +670,43 @@ def send_friend_request(request, username):
     
     # Check if friend request already exists
     if FriendRequest.objects.filter(from_user=request.user, to_user=to_user).exists():
-        return JsonResponse({
-            "success": False,
-            "error": "Friend request already exists"
-        }, status=400)
+        # If this was a normal form POST (not AJAX), redirect back to profile with a message
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.is_ajax():
+            return JsonResponse({
+                "success": False,
+                "error": "Friend request already exists"
+            }, status=400)
+        else:
+            # Use Django messages to inform the user (optional) and redirect back
+            try:
+                messages.info(request, "Friend request already exists")
+            except Exception:
+                pass
+            return redirect('profile', username=to_user.username)
     
     try:
         FriendRequest.objects.create(from_user=request.user, to_user=to_user)
-        return JsonResponse({"success": True})
+        # If this was an AJAX request, return JSON; otherwise redirect back to profile.
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.is_ajax():
+            return JsonResponse({"success": True})
+        else:
+            try:
+                messages.success(request, "Friend request sent.")
+            except Exception:
+                pass
+            return redirect('profile', username=to_user.username)
     except Exception as e:
-        return JsonResponse({
-            "success": False,
-            "error": str(e)
-        }, status=500)
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.is_ajax():
+            return JsonResponse({
+                "success": False,
+                "error": str(e)
+            }, status=500)
+        else:
+            try:
+                messages.error(request, f"Could not send friend request: {e}")
+            except Exception:
+                pass
+            return redirect('profile', username=to_user.username)
 
 @login_required
 def accept_friend_request(request, username):
@@ -689,14 +718,16 @@ def accept_friend_request(request, username):
     
     # Delete the request
     friend_request.delete()
-    return redirect('profile')
+    # Redirect to the profile of the user who sent the request
+    return redirect('profile', username=from_user.username)
 
 @login_required
 def reject_friend_request(request, username):
     from_user = get_object_or_404(get_user_model(), username=username)
     friend_request = get_object_or_404(FriendRequest, from_user=from_user, to_user=request.user)
     friend_request.delete()
-    return redirect('profile')
+    # Redirect back to the profile of the user who sent the request
+    return redirect('profile', username=from_user.username)
 
 @login_required
 def remove_friend(request, username):
@@ -705,7 +736,8 @@ def remove_friend(request, username):
         Q(user1=request.user, user2=friend) | 
         Q(user1=friend, user2=request.user)
     ).delete()
-    return redirect('profile')
+    # After removing, redirect to the former friend's profile
+    return redirect('profile', username=friend.username)
 
 @login_required
 def profile(request, username):
@@ -747,6 +779,7 @@ def profile(request, username):
     # Safely fetch profile bio without triggering a ProgrammingError if the Profile table doesn't exist yet
     profile_exists = False
     profile_bio = None
+    author_avatar_url = None
     try:
         from .models import Profile
         try:
@@ -755,6 +788,15 @@ def profile(request, username):
                 profile_exists = True
                 # Ensure we return an empty string if bio is None so template logic works
                 profile_bio = prof.bio or ''
+                # Attempt to get profile image URL if present. Don't strict-check storage.exists here;
+                # the template will attempt to load the URL and fall back to the initial if it 404s.
+                try:
+                    if getattr(prof, 'image', None) and getattr(prof.image, 'name', None):
+                        author_avatar_url = prof.image.url
+                    else:
+                        author_avatar_url = None
+                except Exception:
+                    author_avatar_url = None
         except Exception as e:
             # Any DB-level exception (e.g., relation does not exist) will be caught here
             print(f"Debug: Could not query Profile for user {user.username}: {e}")
@@ -793,6 +835,8 @@ def profile(request, username):
         'compatibility_score': compatibility_score,
         'profile_exists': profile_exists,
         'profile_bio': profile_bio,
+        'author_avatar_url': author_avatar_url,
+        'display_song': getattr(prof, 'display_song', None) if profile_exists else None,
     }
 
     # If a flash message exists for edit success, include it
@@ -801,6 +845,249 @@ def profile(request, username):
         messages.success(request, "Profile updated successfully.")
 
     return render(request, "profile.html", {'user_data': user_data})
+
+
+@login_required
+def friends(request):
+    """Render a standalone friends page listing current user's friends and actions."""
+    current_user = request.user
+    User = get_user_model()
+
+    # Find friendships where current_user is user1 or user2
+    friendships = Friendship.objects.filter(user1=current_user) | Friendship.objects.filter(user2=current_user)
+
+    # Collect friend user objects
+    friends = set()
+    for f in friendships:
+        friends.add(f.user1)
+        friends.add(f.user2)
+    friends.discard(current_user)
+
+    # For each friend prepare display data
+    friends_list = []
+    for u in friends:
+        friends_list.append({
+            'username': u.username,
+            'id': u.id,
+        })
+
+    # Incoming friend requests (to current user)
+    incoming_qs = FriendRequest.objects.filter(to_user=current_user)
+    incoming = []
+    for r in incoming_qs:
+        incoming.append({
+            'from_username': r.from_user.username,
+            'from_id': r.from_user.id,
+        })
+
+    # Sent friend requests (from current user)
+    sent_qs = FriendRequest.objects.filter(from_user=current_user)
+    sent = []
+    for r in sent_qs:
+        sent.append({
+            'to_username': r.to_user.username,
+            'to_id': r.to_user.id,
+        })
+
+    return render(request, 'friends.html', {
+        'friends': friends_list,
+        'incoming_requests': incoming,
+        'sent_requests': sent,
+    })
+
+
+@login_required
+def cancel_friend_request(request, username):
+    """Cancel a friend request that the current user sent to `username`."""
+    if request.method != 'POST':
+        return redirect('friends')
+
+    to_user = get_object_or_404(get_user_model(), username=username)
+    try:
+        fr = FriendRequest.objects.filter(from_user=request.user, to_user=to_user).first()
+        if fr:
+            fr.delete()
+    except Exception:
+        pass
+    return redirect('friends')
+
+
+@login_required
+def leaderboard_autocomplete(request):
+    """Return a small list of artist suggestions for autocomplete using Spotify search.
+
+    Query params:
+    - q: partial artist name
+    """
+    q = request.GET.get('q', '').strip()
+    if not q:
+        return JsonResponse({'results': []})
+
+    # Use the current user's Spotify token to perform the search when possible
+    try:
+        token = get_token(request.user)
+        if not token:
+            return JsonResponse({'results': []})
+        # search_for_artist expects a token object in this codebase
+        artist = search_for_artist(request.user, q)
+        if not artist:
+            return JsonResponse({'results': []})
+        # Return a small list (Spotify search returned best match); format for frontend
+        return JsonResponse({'results': [{'id': artist.get('id'), 'name': artist.get('name')}]})
+    except Exception:
+        return JsonResponse({'results': []})
+
+
+@login_required
+def leaderboard_results(request):
+    """Compute a school-local leaderboard for a given artist.
+
+    Accepts either `artist_id` or `artist_name` as GET params. Returns top 10 users
+    from the current user's 'school' (inferred from email domain) ranked by how highly
+    the artist appears in their top artists (long_term). This is an approximation when
+    play counts are not stored server-side.
+    """
+    artist_id = request.GET.get('artist_id')
+    artist_name = request.GET.get('artist_name')
+    if not (artist_id or artist_name):
+        return JsonResponse({'results': []})
+
+    User = get_user_model()
+    current = request.user
+
+    # Infer school from email domain (everything after '@'), fallback to all users
+    school_domain = None
+    try:
+        if current.email and '@' in current.email:
+            school_domain = current.email.split('@', 1)[1].lower()
+    except Exception:
+        school_domain = None
+
+    if school_domain:
+        candidates = User.objects.filter(email__iendswith='@' + school_domain, is_active=True)
+    else:
+        candidates = User.objects.filter(is_active=True)
+
+    from .models import ArtistListen
+
+    results = []
+    # For scoring: we'll call get_top_artists(user, time_range='long_term') and
+    # if the artist is present at rank r (0-based), score = 100 - r (higher is better).
+    for u in candidates:
+        try:
+            # Prefer an aggregated listening time if we have it in ArtistListen.
+            listen_q = None
+            if artist_id:
+                listen_q = ArtistListen.objects.filter(user=u, artist_id=artist_id).first()
+            if not listen_q and artist_name:
+                listen_q = ArtistListen.objects.filter(user=u, artist_name__iexact=artist_name).first()
+            if listen_q:
+                # Prefer play_count if available (how many times recent-play included artist)
+                if getattr(listen_q, 'play_count', None) and listen_q.play_count > 0:
+                    results.append({'username': u.username, 'score': listen_q.play_count, 'play_count': listen_q.play_count})
+                    continue
+                if listen_q.total_ms and listen_q.total_ms > 0:
+                    # Score by minutes listened (round to integer minutes for display)
+                    minutes = int(listen_q.minutes())
+                    results.append({'username': u.username, 'score': minutes, 'minutes': minutes})
+                    continue
+                continue
+            top = get_top_artists(u, time_range='long_term')
+            if isinstance(top, dict) and top.get('Error'):
+                continue
+            # top is list of artist dicts
+            found_rank = None
+            for i, a in enumerate(top or []):
+                if artist_id and a.get('id') == artist_id:
+                    found_rank = i
+                    break
+                if artist_name and a.get('name', '').lower() == artist_name.lower():
+                    found_rank = i
+                    break
+
+            if found_rank is not None:
+                score = max(0, 100 - found_rank)
+                results.append({'username': u.username, 'score': score, 'rank': found_rank + 1})
+        except Exception:
+            continue
+
+    # Sort by score desc then rank asc
+    results.sort(key=lambda x: (-x['score'], x['rank']))
+    top10 = results[:10]
+    return JsonResponse({'results': top10})
+
+
+@login_required
+def leaderboard_page(request):
+    """Render a standalone leaderboard page for an artist. Accepts artist_id or artist_name as GET params.
+    Reuses leaderboard_results logic to compute results and passes them to a template.
+    """
+    artist_id = request.GET.get('artist_id')
+    artist_name = request.GET.get('artist_name')
+    # Reuse the results function to get JSON, but call logic inline to avoid extra HTTP
+    resp = leaderboard_results(request)
+    try:
+        data = resp.content
+        # resp is a JsonResponse; get the dict
+        import json as _json
+        parsed = _json.loads(data)
+    except Exception:
+        parsed = {'results': []}
+
+    return render(request, 'leaderboard.html', {
+        'artist_name': artist_name,
+        'artist_id': artist_id,
+        'results': parsed.get('results', [])
+    })
+
+
+@login_required
+def upload_profile_image(request):
+    """Handle AJAX profile image uploads for the current user."""
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=400)
+
+    form = None
+    try:
+        from .forms import ProfileImageForm
+        form = ProfileImageForm(request.POST, request.FILES)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': 'Server misconfigured'}, status=500)
+
+    if not form.is_valid():
+        return JsonResponse({'success': False, 'error': 'invalid_image'}, status=400)
+
+    image = form.cleaned_data['image']
+
+    # Ensure Profile exists
+    try:
+        from .models import Profile
+        profile_obj = Profile.objects.filter(user=request.user).first()
+        if not profile_obj:
+            profile_obj = Profile.objects.create(user=request.user)
+
+        # Assign and save image
+        profile_obj.image = image
+        profile_obj.save()
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    # Build URL for response
+    try:
+        if profile_obj.image:
+            image_url = request.build_absolute_uri(profile_obj.image.url)
+        else:
+            image_url = ''
+    except Exception:
+        image_url = ''
+
+    # Log upload/store details for debugging
+    try:
+        logger.info(f"upload_profile_image: user={request.user.username} saved image name={getattr(profile_obj.image, 'name', None)} url={image_url}")
+    except Exception:
+        pass
+
+    return JsonResponse({'success': True, 'image_url': image_url})
 
 
 @login_required
@@ -907,7 +1194,34 @@ def discussion(request):
     import os
     import shutil
 
-    posts_qs = Post.objects.select_related('author').all()
+    # Prefetch related data and annotate reaction counts to avoid N+1 queries.
+    # Annotate likes_count/dislikes_count in the DB using conditional aggregation so
+    # we don't call .count() for every post in Python.
+    posts_qs = (
+        Post.objects
+        .select_related('author')
+        .prefetch_related('comments', 'reactions', 'comments__reactions')
+        .annotate(
+            likes_count=Count(Case(When(reactions__value=Reaction.LIKE, then=1), output_field=IntegerField())),
+            dislikes_count=Count(Case(When(reactions__value=Reaction.DISLIKE, then=1), output_field=IntegerField())),
+        )
+    )
+    # Apply ordering based on the `sort` query parameter. Supported values:
+    # - 'newest' (default): most recent first
+    # - 'oldest': oldest first
+    # - 'most_liked': order by likes_count desc (ties by newest)
+    sort = request.GET.get('sort', 'newest')
+    try:
+        if sort == 'oldest':
+            posts_qs = posts_qs.order_by('created_at')
+        elif sort == 'most_liked':
+            posts_qs = posts_qs.order_by('-likes_count', '-created_at')
+        else:
+            # default / 'newest'
+            posts_qs = posts_qs.order_by('-created_at')
+    except Exception:
+        # If ordering fails for any reason, fall back to default ordering
+        posts_qs = posts_qs.order_by('-created_at')
     posts = []
     for p in posts_qs:
         image_exists = False
@@ -931,9 +1245,168 @@ def discussion(request):
                         image_exists = False
         except Exception:
             image_exists = False
-        posts.append({'post': p, 'image_exists': image_exists})
+        # Reaction counts: prefer the annotated DB values (faster). Fall back to 0
+        # if the annotation isn't present for any reason.
+        try:
+            likes = int(getattr(p, 'likes_count', 0) or 0)
+        except Exception:
+            likes = 0
+        try:
+            dislikes = int(getattr(p, 'dislikes_count', 0) or 0)
+        except Exception:
+            dislikes = 0
+
+        # Current user's reaction value or 0
+        # Determine current user's reaction without extra DB queries if possible.
+        user_reaction = 0
+        try:
+            if request.user.is_authenticated:
+                # Try to use prefetched reactions first
+                try:
+                    reactions = list(p.reactions.all())
+                    urr = next((r for r in reactions if r.user_id == request.user.id), None)
+                except Exception:
+                    urr = p.reactions.filter(user=request.user).first()
+                user_reaction = urr.value if urr else 0
+        except Exception:
+            user_reaction = 0
+
+        # Author avatar (if available)
+        try:
+            author_avatar_url = None
+            pav = getattr(p.author, 'profile_avatar', None)
+            if pav and getattr(pav, 'avatar', None):
+                try:
+                    author_avatar_url = pav.avatar.url
+                except Exception:
+                    author_avatar_url = None
+        except Exception:
+            author_avatar_url = None
+
+        # Prepare comments with reaction counts
+        comments_with_counts = []
+        for c in p.comments.all():
+            # comment author avatar
+            try:
+                c_avatar_url = None
+                cpav = getattr(c.author, 'profile_avatar', None)
+                if cpav and getattr(cpav, 'avatar', None):
+                    try:
+                        c_avatar_url = cpav.avatar.url
+                    except Exception:
+                        c_avatar_url = None
+            except Exception:
+                c_avatar_url = None
+            c_likes = c.reactions.filter(value=Reaction.LIKE).count()
+            c_dislikes = c.reactions.filter(value=Reaction.DISLIKE).count()
+            try:
+                c_user_reaction_obj = c.reactions.filter(user=request.user).first() if request.user.is_authenticated else None
+                c_user_reaction = c_user_reaction_obj.value if c_user_reaction_obj else 0
+            except Exception:
+                c_user_reaction = 0
+            comments_with_counts.append({
+                'comment': c,
+                'likes': c_likes,
+                'dislikes': c_dislikes,
+                'user_reaction': c_user_reaction,
+                'avatar_url': c_avatar_url,
+            })
+
+        posts.append({
+            'post': p,
+            'image_exists': image_exists,
+            'likes': likes,
+            'dislikes': dislikes,
+            'user_reaction': user_reaction,
+            'comments': comments_with_counts,
+            'author_avatar_url': author_avatar_url,
+        })
 
     return render(request, 'discussion.html', {'form': form, 'posts': posts})
+
+
+@login_required
+def add_comment(request, post_id):
+    """Handle creation of a comment for a given post."""
+    post = get_object_or_404(Post, id=post_id)
+    if request.method == 'POST':
+        form = CommentForm(request.POST)
+        if form.is_valid():
+            comment = form.save(commit=False)
+            comment.post = post
+            comment.author = request.user
+            comment.save()
+            # Redirect to the discussion page and jump to the newly created comment so it's visible.
+            try:
+                from django.urls import reverse
+                return redirect(reverse('discussion') + f'#comment-{comment.id}')
+            except Exception:
+                return redirect('discussion')
+    return redirect('discussion')
+
+
+@login_required
+def react(request, post_id):
+    """Handle like/dislike reactions for posts. Expects POST with 'value' = '1' or '-1'."""
+    # This view handles reactions targeted at posts (post_id) or comments (comment_id passed via POST)
+    target_comment_id = request.POST.get('comment_id')
+    if target_comment_id:
+        # Reacting to a comment
+        comment = get_object_or_404(Comment, id=target_comment_id)
+        try:
+            v = int(request.POST.get('value'))
+            if v not in (1, -1):
+                return redirect('discussion')
+        except (TypeError, ValueError):
+            return redirect('discussion')
+
+        reaction, created = Reaction.objects.update_or_create(
+            comment=comment,
+            user=request.user,
+            defaults={'value': v}
+        )
+
+        if not created and reaction.value == v:
+            reaction.delete()
+
+        # If AJAX request, return JSON with updated counts for the comment
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or getattr(request, 'is_ajax', lambda: False)():
+            try:
+                likes = comment.reactions.filter(value=Reaction.LIKE).count()
+                dislikes = comment.reactions.filter(value=Reaction.DISLIKE).count()
+            except Exception:
+                likes = 0
+                dislikes = 0
+            return JsonResponse({'success': True, 'likes': likes, 'dislikes': dislikes})
+
+        return redirect('discussion')
+    else:
+        # Reacting to a post
+        post = get_object_or_404(Post, id=post_id)
+        if request.method == 'POST':
+            try:
+                v = int(request.POST.get('value'))
+                if v not in (1, -1):
+                    return redirect('discussion')
+            except (TypeError, ValueError):
+                return redirect('discussion')
+
+            reaction, created = Reaction.objects.update_or_create(
+                post=post,
+                user=request.user,
+                defaults={'value': v}
+            )
+
+            if not created and reaction.value == v:
+                reaction.delete()
+
+            # If AJAX request, return JSON with updated counts
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or getattr(request, 'is_ajax', lambda: False)():
+                likes = post.reactions.filter(value=Reaction.LIKE).count()
+                dislikes = post.reactions.filter(value=Reaction.DISLIKE).count()
+                return JsonResponse({'success': True, 'likes': likes, 'dislikes': dislikes})
+
+        return redirect('discussion')
 
 def calculate_compatibility(user1, user2):
     try:
@@ -1006,6 +1479,83 @@ def get_all_users(request):
     """
     users = get_user_model().objects.filter(is_active=True).values("id", "username")  # Filter active users
     return JsonResponse({"users": list(users)})
+
+
+@login_required
+def set_display_song(request):
+    """AJAX endpoint to set or clear the current user's profile.display_song JSON field.
+       Expects POST JSON: { action: 'set', track: {...} } or { action: 'clear' }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=400)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        data = request.POST or {}
+
+    action = data.get('action')
+    try:
+        from .models import Profile
+        profile = Profile.objects.filter(user=request.user).first()
+        if not profile:
+            profile = Profile.objects.create(user=request.user)
+
+        if action == 'clear':
+            profile.display_song = None
+            profile.save()
+            return JsonResponse({'success': True})
+
+        if action == 'set':
+            track = data.get('track') or {}
+            # store a subset to reduce DB size
+            stored = {
+                'id': track.get('id'),
+                'name': track.get('name'),
+                'artist': track.get('artist'),
+                'album_art': track.get('album_art')
+            }
+            profile.display_song = stored
+            profile.save()
+            return JsonResponse({'success': True})
+
+        return JsonResponse({'success': False, 'error': 'invalid_action'}, status=400)
+    except Exception as e:
+        logger.exception('set_display_song error')
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def search_track(request):
+    """Search tracks using Spotify API if the user has tokens; otherwise return empty list."""
+    q = request.GET.get('q', '').strip()
+    if not q:
+        return JsonResponse({'tracks': []})
+
+    token = get_token(request.user)
+    if not token:
+        return JsonResponse({'tracks': []})
+
+    try:
+        url = 'https://api.spotify.com/v1/search'
+        headers = get_auth_header(request.user)
+        params = {'q': q, 'type': 'track', 'limit': 8}
+        resp = requests.get(url, headers=headers, params=params)
+        if resp.status_code != 200:
+            return JsonResponse({'tracks': []})
+        js = resp.json()
+        items = js.get('tracks', {}).get('items', [])
+        tracks = []
+        for it in items:
+            tracks.append({
+                'id': it.get('id'),
+                'name': it.get('name'),
+                'artist': ', '.join([a.get('name') for a in it.get('artists', [])]),
+                'album_art': it.get('album', {}).get('images', [{}])[0].get('url')
+            })
+        return JsonResponse({'tracks': tracks})
+    except Exception:
+        return JsonResponse({'tracks': []})
 
 
 @login_required

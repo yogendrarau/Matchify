@@ -1,19 +1,49 @@
 {% extends 'base.html' %}
 
+{% load static %}
 {% block title %}My Profile - Matchify{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gradient-to-b from-black via-[#0c0c0c] to-[#121212] text-white py-12">
-    <!-- Return to Home Button -->
-    <a href="{% url 'home' %}" class="absolute top-5 left-5 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow transition-transform transform hover:scale-105">← Home</a>
+<div class="bg-black min-h-screen flex flex-col items-center justify-center py-12">
+    <!-- Back to Discussions Button -->
+    <a href="{% url 'home' %}" 
+       class="absolute top-5 left-5 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-full shadow-md transition-transform transform hover:scale-105">
+        ← Back
+    </a>
 
-    {% if user_data.is_friend or user_data.is_current_user %}
-    <div class="max-w-6xl mx-auto px-4">
-        <div class="flex items-start gap-6 mb-8">
-            <div class="flex-shrink-0 w-20 h-20 rounded-full bg-gray-800 flex items-center justify-center text-3xl font-bold text-white">{{ user_data.user.username|slice:":1"|upper }}</div>
-            <div class="grow">
-                <h1 class="text-2xl md:text-3xl font-bold bg-gradient-to-r from-green-400 to-emerald-600 bg-clip-text text-transparent">{{ user_data.user.username }}{% if user_data.is_current_user %} (You){% endif %}</h1>
-                <p class="text-sm text-gray-400 mt-1">Member since {{ user_data.user.date_joined|date:"F j, Y" }}</p>
+    <div class="max-w-3xl w-full p-6 rounded-lg shadow-lg">
+        <div class="flex items-center space-x-6 mb-4">
+            <div class="relative group">
+                <!-- Avatar container -->
+                <div id="avatar-wrap" class="w-24 h-24 bg-gray-700 rounded-full overflow-hidden flex items-center justify-center text-3xl text-white">
+                    {% if user_data.author_avatar_url %}
+                        <img id="profile-avatar" src="{{ user_data.author_avatar_url }}" alt="avatar" class="w-24 h-24 object-cover" onerror="this.style.display='none'; document.getElementById('profile-avatar-initial').style.display='flex'" onload="document.getElementById('profile-avatar-initial').style.display='none'" />
+                        <div id="profile-avatar-initial" class="w-24 h-24 flex items-center justify-center text-3xl text-white" style="display:none">{{ user_data.user.username|slice:":1"|upper }}</div>
+                    {% else %}
+                        <img id="profile-avatar" src="{% static 'avatars/' %}{{ user_data.user.username }}.png" alt="avatar" class="w-24 h-24 object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" onload="this.nextElementSibling.style.display='none'" />
+                        <div id="profile-avatar-initial" class="w-24 h-24 flex items-center justify-center text-3xl text-white" style="display:none">{{ user_data.user.username|slice:":1"|upper }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Transparent camera overlay shown on hover for current user -->
+                {% if user_data.is_current_user %}
+                <button id="change-avatar-btn" title="Change profile picture" class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-opacity rounded-full" style="border:none">
+                    <!-- camera svg -->
+                    <svg id="camera-icon" xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 7h2l2-3h8l2 3h2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"></path>
+                        <circle cx="12" cy="13" r="3"></circle>
+                    </svg>
+                </button>
+                {% endif %}
+
+                <!-- Hidden file input -->
+                <input id="profile-image-input" type="file" accept="image/*" class="hidden" />
+            </div>
+            <div>
+                <h2 class="text-2xl font-semibold text-white">{{ user_data.user.username }} {% if user_data.is_current_user %}(You){% endif %}</h2>
+                <p class="text-gray-400">Member since: {{ user_data.user.date_joined|date:"F j, Y" }}</p>
+            </div>
+        </div>
 
                 {% if user_data.compatibility_score is not None and not user_data.is_current_user %}
                     <div class="mt-3">
@@ -25,28 +55,32 @@
                 {% endif %}
             </div>
 
-            <div class="ml-auto flex items-center gap-2">
-                {% if not user_data.is_current_user %}
-                    {% if user_data.is_friend %}
-                        <form action="{% url 'remove_friend' user_data.user.username %}" method="post">{% csrf_token %}
-                            <button type="submit" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg shadow">Remove</button>
+        <!-- Friend Actions -->
+        {% if not user_data.is_current_user %}
+            <div class="mb-4">
+                {% if user_data.is_friend %}
+                    <form action="{% url 'remove_friend' user_data.user.username %}" method="post">
+                        {% csrf_token %}
+                        <button type="submit" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Remove Friend</button>
+                    </form>
+                {% elif user_data.friend_request_sent %}
+                    <p class="text-yellow-500">Friend Request Sent</p>
+                {% elif user_data.friend_request_received %}
+                    <div class="flex gap-2">
+                        <form action="{% url 'accept_friend_request' user_data.user.username %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Accept</button>
                         </form>
-                    {% elif user_data.friend_request_sent %}
-                        <span class="px-3 py-2 rounded-md bg-yellow-600 text-black">Request Sent</span>
-                    {% elif user_data.friend_request_received %}
-                        <div class="flex gap-2">
-                            <form action="{% url 'accept_friend_request' user_data.user.username %}" method="post">{% csrf_token %}
-                                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg">Accept</button>
-                            </form>
-                            <form action="{% url 'reject_friend_request' user_data.user.username %}" method="post">{% csrf_token %}
-                                <button type="submit" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg">Reject</button>
-                            </form>
-                        </div>
-                    {% else %}
-                        <form action="{% url 'send_friend_request' user_data.user.username %}" method="post">{% csrf_token %}
-                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg">Add Friend</button>
+                        <form action="{% url 'reject_friend_request' user_data.user.username %}" method="post">
+                            {% csrf_token %}
+                            <button type="submit" class="bg-red-500 hover:bg-red-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Reject</button>
                         </form>
-                    {% endif %}
+                    </div>
+                {% else %}
+                    <form id="send-friend-form" action="{% url 'send_friend_request' user_data.user.username %}" method="post">
+                        {% csrf_token %}
+                        <button id="add-friend-btn" type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Add Friend</button>
+                    </form>
                 {% endif %}
             </div>
         </div>
@@ -104,14 +138,41 @@
                 </div>
             </div>
 
-            <aside class="bg-[#11161b]/80 border border-gray-700/70 rounded-2xl shadow-xl p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-semibold mb-0">Top Songs</h3>
-                    <div class="flex gap-2">
-                        <a href="?tracks_range=short_term" class="px-3 py-1 rounded-md text-xs font-medium {% if user_data.tracks_range == 'short_term' %}bg-emerald-600 text-white{% else %}bg-[#0c1116] text-gray-300 border border-gray-700{% endif %}">4 Weeks</a>
-                        <a href="?tracks_range=medium_term" class="px-3 py-1 rounded-md text-xs font-medium {% if user_data.tracks_range == 'medium_term' %}bg-emerald-600 text-white{% else %}bg-[#0c1116] text-gray-300 border border-gray-700{% endif %}">6 Months</a>
-                        <a href="?tracks_range=long_term" class="px-3 py-1 rounded-md text-xs font-medium {% if user_data.tracks_range == 'long_term' %}bg-emerald-600 text-white{% else %}bg-[#0c1116] text-gray-300 border border-gray-700{% endif %}">All Time</a>
+            <aside class="space-y-6">
+                <!-- Display Song panel -->
+                <div class="bg-gray-900 p-4 rounded">
+                    <h3 class="text-lg font-medium mb-2 text-white">Favorite Song</h3>
+                    <div id="current-display-song" class="mt-2 text-gray-300">
+                        {% if user_data.display_song %}
+                            <div class="flex items-center space-x-3">
+                                <img src="{{ user_data.display_song.album_art }}" alt="{{ user_data.display_song.name }}" class="w-12 h-12 rounded object-cover" />
+                                <div>`
+                                    <div class="font-semibold text-white">{{ user_data.display_song.name }}</div>
+                                    <div class="text-xs text-gray-400">{{ user_data.display_song.artist }}</div>
+                                </div>
+                                <button id="clear-display-song" class="ml-auto bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm">Clear</button>
+                            </div>
+                        {% else %}
+                            <div class="text-gray-400">No display song set. Search below to choose one.</div>
+                        {% endif %}
                     </div>
+
+                    {% if user_data.is_current_user %}
+                    <div class="mt-3">
+                        <input id="display-song-search" type="search" placeholder="Search tracks..." class="w-full p-2 rounded bg-gray-800 text-white" />
+                        <div id="display-song-results" class="mt-2 space-y-2"></div>
+                        <div id="display-song-spinner" class="hidden text-sm text-gray-400 mt-2">Searching…</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Top Songs panel -->
+                <div class="bg-gray-900 p-4 rounded self-start h-auto">
+                    <h3 class="text-lg font-medium mb-2 text-white">Top Songs</h3>
+                <div class="flex gap-2 mb-3">
+                    <a href="?tracks_range=short_term" class="tracks-range-btn px-3 py-1 rounded text-sm transition transform hover:scale-105 shadow-sm {% if user_data.tracks_range == 'short_term' %}bg-green-700 text-white ring-2 ring-green-400{% else %}bg-green-600 text-white hover:bg-green-700 hover:brightness-110{% endif %}" data-range="short_term">4 Weeks</a>
+                    <a href="?tracks_range=medium_term" class="tracks-range-btn px-3 py-1 rounded text-sm transition transform hover:scale-105 shadow-sm {% if user_data.tracks_range == 'medium_term' %}bg-green-700 text-white ring-2 ring-green-400{% else %}bg-green-600 text-white hover:bg-green-700 hover:brightness-110{% endif %}" data-range="medium_term">6 Months</a>
+                    <a href="?tracks_range=long_term" class="tracks-range-btn px-3 py-1 rounded text-sm transition transform hover:scale-105 shadow-sm {% if user_data.tracks_range == 'long_term' %}bg-green-700 text-white ring-2 ring-green-400{% else %}bg-green-600 text-white hover:bg-green-700 hover:brightness-110{% endif %}" data-range="long_term">All Time</a>
                 </div>
 
                 <div id="tracks-container" class="max-h-96 overflow-auto pr-2">
@@ -147,13 +208,7 @@
             </aside>
         </div>
     </div>
-    {% else %}
-    <div class="max-w-md mx-auto p-6 rounded-lg shadow-lg bg-red-600 text-white">
-        <h2 class="text-2xl font-semibold mb-2">Access Denied</h2>
-        <p>You can only view the profile of a friend.</p>
-        <a href="{% url 'home' %}" class="inline-block mt-4 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full">Return to Home</a>
-    </div>
-    {% endif %}
+    
 </div>
 {% endblock %}
 
@@ -172,6 +227,181 @@ document.addEventListener('DOMContentLoaded', function () {
         viewAll.addEventListener('click', function () {
             if (spinner) spinner.classList.remove('hidden');
         });
+    }
+});
+</script>
+<script>
+// Display song search + set handler
+document.addEventListener('DOMContentLoaded', function () {
+    const searchInput = document.getElementById('display-song-search');
+    const resultsEl = document.getElementById('display-song-results');
+    const spinner = document.getElementById('display-song-spinner');
+    const clearBtn = document.getElementById('clear-display-song');
+
+    function getCsrfToken() {
+        const cookie = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='));
+        return cookie ? cookie.split('=')[1] : '';
+    }
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', async function () {
+            const csrftoken = getCsrfToken();
+            try {
+                const res = await fetch('{% url "set_display_song" %}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ action: 'clear' })
+                });
+                if (res.ok) location.reload();
+            } catch (err) { console.error('Error clearing display song', err); }
+        });
+    }
+
+    if (!searchInput) return;
+
+    let timeout = null;
+    searchInput.addEventListener('input', function (e) {
+        const q = searchInput.value.trim();
+        resultsEl.innerHTML = '';
+        if (timeout) clearTimeout(timeout);
+        if (!q) return;
+        timeout = setTimeout(() => doSearch(q), 350);
+    });
+
+    async function doSearch(q) {
+        if (!resultsEl || !spinner) return;
+        spinner.classList.remove('hidden');
+        try {
+            const res = await fetch('/search-track?q=' + encodeURIComponent(q), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!res.ok) {
+                resultsEl.innerHTML = '<div class="text-sm text-red-400">Search failed</div>';
+                return;
+            }
+            const data = await res.json();
+            renderResults(data.tracks || []);
+        } catch (err) {
+            console.error('Search error', err);
+            resultsEl.innerHTML = '<div class="text-sm text-red-400">Search failed</div>';
+        } finally {
+            spinner.classList.add('hidden');
+        }
+    }
+
+    function renderResults(tracks) {
+        if (!resultsEl) return;
+        if (!tracks.length) {
+            resultsEl.innerHTML = '<div class="text-sm text-gray-400">No results</div>';
+            return;
+        }
+        resultsEl.innerHTML = '';
+        tracks.slice(0,8).forEach(t => {
+            const div = document.createElement('div');
+            div.className = 'flex items-center justify-between p-2 bg-gray-800 rounded';
+            div.innerHTML = `
+                <div class="flex items-center space-x-3">
+                    <img src="${t.album_art || ''}" class="w-10 h-10 rounded object-cover" />
+                    <div>
+                        <div class="font-semibold text-white">${escapeHtml(t.name)}</div>
+                        <div class="text-xs text-gray-400">${escapeHtml(t.artist)}</div>
+                    </div>
+                </div>
+                <div>
+                    <button data-track='${JSON.stringify(t).replace(/'/g, '&#39;')}' class="set-display-song bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">Set</button>
+                </div>
+            `;
+            resultsEl.appendChild(div);
+        });
+
+        // bind set buttons
+        resultsEl.querySelectorAll('.set-display-song').forEach(btn => {
+            btn.addEventListener('click', async function () {
+                const track = JSON.parse(this.getAttribute('data-track'));
+                const csrftoken = getCsrfToken();
+                try {
+                    const res = await fetch('{% url "set_display_song" %}', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest' },
+                        body: JSON.stringify({ action: 'set', track })
+                    });
+                    if (res.ok) location.reload(); else alert('Failed to set display song');
+                } catch (err) {
+                    console.error('Set display song error', err);
+                    alert('Network error');
+                }
+            });
+        });
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/[&<>\"']/g, function (s) {
+            return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[s];
+        });
+    }
+});
+</script>
+<script>
+// Profile image upload handler
+document.addEventListener('DOMContentLoaded', function () {
+    try {
+        const changeBtn = document.getElementById('change-avatar-btn');
+        const fileInput = document.getElementById('profile-image-input');
+        const avatarImg = document.getElementById('profile-avatar');
+        const avatarInitial = document.getElementById('profile-avatar-initial');
+
+        function getCsrfToken() {
+            const cookie = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='));
+            return cookie ? cookie.split('=')[1] : '';
+        }
+
+        if (changeBtn && fileInput) {
+            changeBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', function (e) {
+                const file = fileInput.files && fileInput.files[0];
+                if (!file) return;
+
+                // Basic client-side validation
+                if (!file.type.startsWith('image/')) {
+                    alert('Please select an image file.');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('image', file);
+
+                const csrftoken = getCsrfToken();
+
+                fetch('{% url "upload_profile_image" %}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrftoken
+                    },
+                    body: formData
+                }).then(r => r.json()).then(data => {
+                    if (data.success && data.image_url) {
+                        if (avatarImg) {
+                            avatarImg.src = data.image_url;
+                            avatarImg.classList.remove('hidden');
+                        }
+                        if (avatarInitial) avatarInitial.classList.add('hidden');
+                    } else {
+                        alert('Failed to upload image.');
+                        console.error('Upload error', data);
+                    }
+                }).catch(err => {
+                    console.error('Upload failed', err);
+                    alert('Upload failed.');
+                }).finally(() => {
+                    fileInput.value = '';
+                });
+            });
+        }
+    } catch (err) {
+        console.error('Error wiring profile image upload', err);
     }
 });
 </script>
@@ -233,6 +463,61 @@ document.addEventListener('DOMContentLoaded', function () {
     } catch (err) {
         console.error('Error wiring bio edit buttons', err);
     }
+});
+</script>
+<script>
+// AJAX send-friend form handler: prevents full-page navigation and swaps the UI on success.
+document.addEventListener('DOMContentLoaded', function () {
+    const sendForm = document.getElementById('send-friend-form');
+    if (!sendForm) return;
+
+    function getCsrfToken() {
+        const cookie = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='));
+        return cookie ? cookie.split('=')[1] : '';
+    }
+
+    sendForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const submitBtn = sendForm.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+
+        const formData = new FormData(sendForm);
+        const csrftoken = getCsrfToken();
+
+        try {
+            const resp = await fetch(sendForm.action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData,
+                credentials: 'same-origin',
+                redirect: 'follow'
+            });
+
+            // Try to parse JSON if present
+            let data = null;
+            try { data = await resp.clone().json(); } catch (err) { data = null; }
+
+            // Treat any 2xx or 3xx as success (covers redirects and HTML responses) or explicit JSON success flag
+            if ((data && data.success) || (resp.status >= 200 && resp.status < 400)) {
+                const wrapper = sendForm.parentElement;
+                if (wrapper) {
+                    wrapper.innerHTML = '<p class="text-yellow-500">Friend Request Sent</p>';
+                }
+            } else {
+                let msg = 'Failed to send friend request.';
+                if (data && data.error) msg = data.error;
+                alert(msg);
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        } catch (err) {
+            console.error('Error sending friend request:', err);
+            alert('Network error while sending friend request.');
+            if (submitBtn) submitBtn.disabled = false;
+        }
+    });
 });
 </script>
 {% endblock %}
