@@ -79,8 +79,8 @@
                             <img src="{{ author_avatar_url }}" alt="{{ post.author.username }} avatar" class="w-8 h-8 rounded-full object-cover" onerror="this.style.display='none'" />
                         {% else %}
                             <!-- try static avatar at /static/avatars/<username>.png, otherwise show initial -->
-                            <img src="{% static 'avatars/' %}{{ post.author.username }}.png" alt="{{ post.author.username }} avatar" class="w-8 h-8 rounded-full object-cover" onerror="this.style.display='none'" />
-                            <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm text-white">{{ post.author.username|slice:":1"|upper }}</div>
+                            <img src="{% static 'avatars/' %}{{ post.author.username }}.png" alt="{{ post.author.username }} avatar" class="w-8 h-8 rounded-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" onload="this.nextElementSibling.style.display='none'" />
+                            <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm text-white" style="display:none">{{ post.author.username|slice:":1"|upper }}</div>
                         {% endif %}
                         <a href="{% url 'profile' post.author.username %}" class="font-semibold text-blue-500">{{ post.author.username }}</a>
                     </div>
@@ -134,8 +134,8 @@
                                         {% if c.avatar_url %}
                                             <img src="{{ c.avatar_url }}" alt="{{ comment.author.username }} avatar" class="w-6 h-6 rounded-full object-cover" onerror="this.style.display='none'" />
                                         {% else %}
-                                            <img src="{% static 'avatars/' %}{{ comment.author.username }}.png" alt="{{ comment.author.username }} avatar" class="w-6 h-6 rounded-full object-cover" onerror="this.style.display='none'" />
-                                            <div class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-xs text-white">{{ comment.author.username|slice:":1"|upper }}</div>
+                                            <img src="{% static 'avatars/' %}{{ comment.author.username }}.png" alt="{{ comment.author.username }} avatar" class="w-6 h-6 rounded-full object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" onload="this.nextElementSibling.style.display='none'" />
+                                            <div class="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-xs text-white" style="display:none">{{ comment.author.username|slice:":1"|upper }}</div>
                                         {% endif %}
                                         <div class="text-sm text-blue-400 font-semibold"><a href="{% url 'profile' comment.author.username %}">{{ comment.author.username }}</a> <span class="text-xs text-gray-400">· {{ comment.created_at }}</span></div>
                                     </div>

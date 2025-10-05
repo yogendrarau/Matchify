@@ -742,6 +742,7 @@ def profile(request, username):
     # Safely fetch profile bio without triggering a ProgrammingError if the Profile table doesn't exist yet
     profile_exists = False
     profile_bio = None
+    author_avatar_url = None
     try:
         from .models import Profile
         try:
@@ -750,6 +751,15 @@ def profile(request, username):
                 profile_exists = True
                 # Ensure we return an empty string if bio is None so template logic works
                 profile_bio = prof.bio or ''
+                # Attempt to get profile image URL if present. Don't strict-check storage.exists here;
+                # the template will attempt to load the URL and fall back to the initial if it 404s.
+                try:
+                    if getattr(prof, 'image', None) and getattr(prof.image, 'name', None):
+                        author_avatar_url = prof.image.url
+                    else:
+                        author_avatar_url = None
+                except Exception:
+                    author_avatar_url = None
         except Exception as e:
             # Any DB-level exception (e.g., relation does not exist) will be caught here
             print(f"Debug: Could not query Profile for user {user.username}: {e}")
@@ -788,6 +798,7 @@ def profile(request, username):
         'compatibility_score': compatibility_score,
         'profile_exists': profile_exists,
         'profile_bio': profile_bio,
+        'author_avatar_url': author_avatar_url,
     }
 
     # If a flash message exists for edit success, include it
@@ -831,7 +842,10 @@ def upload_profile_image(request):
 
     # Build URL for response
     try:
-        image_url = profile_obj.image.url if profile_obj.image else ''
+        if profile_obj.image:
+            image_url = request.build_absolute_uri(profile_obj.image.url)
+        else:
+            image_url = ''
     except Exception:
         image_url = ''
 
