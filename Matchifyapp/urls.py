@@ -30,7 +30,4 @@ urlpatterns = [
     path('reset/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(template_name='password_reset_confirm.html'), name='password_reset_confirm'),
     path('reset/done/', auth_views.PasswordResetCompleteView.as_view(template_name='password_reset_complete.html'), name='password_reset_complete'),
     path('api/pending_requests', views.pending_requests, name='pending_requests'),
-    path('swipe/', views.swipe_view, name='swipe'),
-    path('api/swipe/next', views.api_next_candidate, name='api_swipe_next'),
-    path('api/swipe/action', views.api_swipe_action, name='api_swipe_action'),
 ]

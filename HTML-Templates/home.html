@@ -48,7 +48,7 @@
     </header>
 
     <!-- Add this after the header section and before the main content -->
-    {% if user.is_authenticated and user.spotify_tokens.all|length %}
+    {% if user.is_authenticated and user.spotify_tokens.exists %}
         <div class="max-w-md mx-auto mt-8 p-6 bg-gray-800 rounded-lg shadow-lg">
             <h3 class="text-xl font-semibold mb-4 text-green-400">Currently Listening</h3>
             <div data-current-track-container>
@@ -92,21 +92,12 @@
                     </button>
                 </form>
                 
-                <!-- Compatibility (replaced by Discover) -->
-                {% if user.spotify_tokens.all|length %}
-                <a href="{% url 'swipe' %}" class="mt-4 block text-center bg-pink-500 hover:bg-pink-600 text-white font-semibold py-4 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 w-full">
-                    Discover (Music)
-                </a>
-                {% endif %}
-                
                 <!-- Discussions Button -->
                 <form action="{% url 'discussion' %}" method="get">
                     <button type="submit" class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-4 px-8 rounded-lg shadow-md transition-transform transform hover:scale-105 w-full">
                         Discussions
                     </button>
                 </form>
-                
-                <!-- Swipe Button intentionally removed (moved to Compatibility slot above) -->
             </div>
         {% else %}
             <div class="max-w-2xl mx-auto space-y-6">
@@ -145,10 +136,8 @@
             dropdownMenu.classList.toggle('hidden');
         }
 
-        // Add click event listener to the button (guard against missing element)
-        if (menuButton) {
-            menuButton.addEventListener('click', toggleDropdown);
-        }
+        // Add click event listener to the button
+        menuButton.addEventListener('click', toggleDropdown);
 
         // Close dropdown when clicking outside
         document.addEventListener('click', function(event) {
@@ -201,7 +190,7 @@
                 });
         }
 
-        {% if user.is_authenticated and user.spotify_tokens.all|length %}
+        {% if user.is_authenticated and user.spotify_tokens.exists %}
             // Initial refresh
             refreshCurrentTrack();
             // Set up periodic refresh

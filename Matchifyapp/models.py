@@ -39,16 +39,6 @@ class Friendship(models.Model):
         unique_together = ('user1', 'user2')
 
 
-class Seen(models.Model):
-    """Tracks which profiles a user has seen in swipe discovery."""
-    user = models.ForeignKey(User, related_name='seen_profiles', on_delete=models.CASCADE)
-    seen_user = models.ForeignKey(User, related_name='was_seen_by', on_delete=models.CASCADE)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('user', 'seen_user')
-
-
 class Post(models.Model):
     """Simple discussion post model."""
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='posts')
