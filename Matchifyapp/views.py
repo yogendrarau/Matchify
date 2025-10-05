@@ -660,19 +660,43 @@ def send_friend_request(request, username):
     
     # Check if friend request already exists
     if FriendRequest.objects.filter(from_user=request.user, to_user=to_user).exists():
-        return JsonResponse({
-            "success": False,
-            "error": "Friend request already exists"
-        }, status=400)
+        # If this was a normal form POST (not AJAX), redirect back to profile with a message
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.is_ajax():
+            return JsonResponse({
+                "success": False,
+                "error": "Friend request already exists"
+            }, status=400)
+        else:
+            # Use Django messages to inform the user (optional) and redirect back
+            try:
+                messages.info(request, "Friend request already exists")
+            except Exception:
+                pass
+            return redirect('profile', username=to_user.username)
     
     try:
         FriendRequest.objects.create(from_user=request.user, to_user=to_user)
-        return JsonResponse({"success": True})
+        # If this was an AJAX request, return JSON; otherwise redirect back to profile.
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.is_ajax():
+            return JsonResponse({"success": True})
+        else:
+            try:
+                messages.success(request, "Friend request sent.")
+            except Exception:
+                pass
+            return redirect('profile', username=to_user.username)
     except Exception as e:
-        return JsonResponse({
-            "success": False,
-            "error": str(e)
-        }, status=500)
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.is_ajax():
+            return JsonResponse({
+                "success": False,
+                "error": str(e)
+            }, status=500)
+        else:
+            try:
+                messages.error(request, f"Could not send friend request: {e}")
+            except Exception:
+                pass
+            return redirect('profile', username=to_user.username)
 
 @login_required
 def accept_friend_request(request, username):
@@ -684,14 +708,16 @@ def accept_friend_request(request, username):
     
     # Delete the request
     friend_request.delete()
-    return redirect('profile')
+    # Redirect to the profile of the user who sent the request
+    return redirect('profile', username=from_user.username)
 
 @login_required
 def reject_friend_request(request, username):
     from_user = get_object_or_404(get_user_model(), username=username)
     friend_request = get_object_or_404(FriendRequest, from_user=from_user, to_user=request.user)
     friend_request.delete()
-    return redirect('profile')
+    # Redirect back to the profile of the user who sent the request
+    return redirect('profile', username=from_user.username)
 
 @login_required
 def remove_friend(request, username):
@@ -700,7 +726,8 @@ def remove_friend(request, username):
         Q(user1=request.user, user2=friend) | 
         Q(user1=friend, user2=request.user)
     ).delete()
-    return redirect('profile')
+    # After removing, redirect to the former friend's profile
+    return redirect('profile', username=friend.username)
 
 @login_required
 def profile(request, username):
@@ -742,6 +769,7 @@ def profile(request, username):
     # Safely fetch profile bio without triggering a ProgrammingError if the Profile table doesn't exist yet
     profile_exists = False
     profile_bio = None
+    author_avatar_url = None
     try:
         from .models import Profile
         try:
@@ -750,6 +778,15 @@ def profile(request, username):
                 profile_exists = True
                 # Ensure we return an empty string if bio is None so template logic works
                 profile_bio = prof.bio or ''
+                # Attempt to get profile image URL if present. Don't strict-check storage.exists here;
+                # the template will attempt to load the URL and fall back to the initial if it 404s.
+                try:
+                    if getattr(prof, 'image', None) and getattr(prof.image, 'name', None):
+                        author_avatar_url = prof.image.url
+                    else:
+                        author_avatar_url = None
+                except Exception:
+                    author_avatar_url = None
         except Exception as e:
             # Any DB-level exception (e.g., relation does not exist) will be caught here
             print(f"Debug: Could not query Profile for user {user.username}: {e}")
@@ -788,6 +825,7 @@ def profile(request, username):
         'compatibility_score': compatibility_score,
         'profile_exists': profile_exists,
         'profile_bio': profile_bio,
+        'author_avatar_url': author_avatar_url,
     }
 
     # If a flash message exists for edit success, include it
@@ -796,6 +834,71 @@ def profile(request, username):
         messages.success(request, "Profile updated successfully.")
 
     return render(request, "profile.html", {'user_data': user_data})
+
+
+@login_required
+def friends(request):
+    """Render a standalone friends page listing current user's friends and actions."""
+    current_user = request.user
+    User = get_user_model()
+
+    # Find friendships where current_user is user1 or user2
+    friendships = Friendship.objects.filter(user1=current_user) | Friendship.objects.filter(user2=current_user)
+
+    # Collect friend user objects
+    friends = set()
+    for f in friendships:
+        friends.add(f.user1)
+        friends.add(f.user2)
+    friends.discard(current_user)
+
+    # For each friend prepare display data
+    friends_list = []
+    for u in friends:
+        friends_list.append({
+            'username': u.username,
+            'id': u.id,
+        })
+
+    # Incoming friend requests (to current user)
+    incoming_qs = FriendRequest.objects.filter(to_user=current_user)
+    incoming = []
+    for r in incoming_qs:
+        incoming.append({
+            'from_username': r.from_user.username,
+            'from_id': r.from_user.id,
+        })
+
+    # Sent friend requests (from current user)
+    sent_qs = FriendRequest.objects.filter(from_user=current_user)
+    sent = []
+    for r in sent_qs:
+        sent.append({
+            'to_username': r.to_user.username,
+            'to_id': r.to_user.id,
+        })
+
+    return render(request, 'friends.html', {
+        'friends': friends_list,
+        'incoming_requests': incoming,
+        'sent_requests': sent,
+    })
+
+
+@login_required
+def cancel_friend_request(request, username):
+    """Cancel a friend request that the current user sent to `username`."""
+    if request.method != 'POST':
+        return redirect('friends')
+
+    to_user = get_object_or_404(get_user_model(), username=username)
+    try:
+        fr = FriendRequest.objects.filter(from_user=request.user, to_user=to_user).first()
+        if fr:
+            fr.delete()
+    except Exception:
+        pass
+    return redirect('friends')
 
 
 @login_required
@@ -960,9 +1063,18 @@ def upload_profile_image(request):
 
     # Build URL for response
     try:
-        image_url = profile_obj.image.url if profile_obj.image else ''
+        if profile_obj.image:
+            image_url = request.build_absolute_uri(profile_obj.image.url)
+        else:
+            image_url = ''
     except Exception:
         image_url = ''
+
+    # Log upload/store details for debugging
+    try:
+        logger.info(f"upload_profile_image: user={request.user.username} saved image name={getattr(profile_obj.image, 'name', None)} url={image_url}")
+    except Exception:
+        pass
 
     return JsonResponse({'success': True, 'image_url': image_url})
 

@@ -25,6 +25,7 @@ urlpatterns = [
     path("accept-friend-request/<str:username>", views.accept_friend_request, name="accept_friend_request"),
     path("reject-friend-request/<str:username>", views.reject_friend_request, name="reject_friend_request"),
     path("remove-friend/<str:username>", views.remove_friend, name="remove_friend"),
+    path("cancel-friend-request/<str:username>", views.cancel_friend_request, name="cancel_friend_request"),
     path("get-current-track", views.get_current_track_endpoint, name="get_current_track"),
     path("api/connections", views.get_connections, name="get_connections"),
     path("profile/<str:username>/", views.profile, name="profile"),
@@ -38,6 +39,7 @@ urlpatterns = [
     path('leaderboard/autocomplete', views.leaderboard_autocomplete, name='leaderboard_autocomplete'),
     path('leaderboard/results', views.leaderboard_results, name='leaderboard_results'),
     path('leaderboard', views.leaderboard_page, name='leaderboard_page'),
+    path('friends/', views.friends, name='friends'),
     # Swipe / discovery routes
     path('swipe/', views.swipe, name='swipe'),
     path('api/swipe/next', views.api_swipe_next, name='api_swipe_next'),

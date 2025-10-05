@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 
+{% load static %}
 {% block title %}My Profile - Matchify{% endblock %}
 
 {% block content %}
@@ -15,11 +16,12 @@
             <div class="relative group">
                 <!-- Avatar container -->
                 <div id="avatar-wrap" class="w-24 h-24 bg-gray-700 rounded-full overflow-hidden flex items-center justify-center text-3xl text-white">
-                    {% if user_data.profile_exists and user_data.user.profile.image %}
-                        <img id="profile-avatar" src="{{ user_data.user.profile.image.url }}" alt="avatar" class="w-24 h-24 object-cover" />
+                    {% if user_data.author_avatar_url %}
+                        <img id="profile-avatar" src="{{ user_data.author_avatar_url }}" alt="avatar" class="w-24 h-24 object-cover" onerror="this.style.display='none'; document.getElementById('profile-avatar-initial').style.display='flex'" onload="document.getElementById('profile-avatar-initial').style.display='none'" />
+                        <div id="profile-avatar-initial" class="w-24 h-24 flex items-center justify-center text-3xl text-white" style="display:none">{{ user_data.user.username|slice:":1"|upper }}</div>
                     {% else %}
-                        <div id="profile-avatar-initial" class="w-24 h-24 flex items-center justify-center text-3xl text-white">{{ user_data.user.username|slice:":1"|upper }}</div>
-                        <img id="profile-avatar" src="" alt="avatar" class="w-24 h-24 object-cover hidden" />
+                        <img id="profile-avatar" src="{% static 'avatars/' %}{{ user_data.user.username }}.png" alt="avatar" class="w-24 h-24 object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'" onload="this.nextElementSibling.style.display='none'" />
+                        <div id="profile-avatar-initial" class="w-24 h-24 flex items-center justify-center text-3xl text-white" style="display:none">{{ user_data.user.username|slice:":1"|upper }}</div>
                     {% endif %}
                 </div>
 
@@ -75,9 +77,9 @@
                         </form>
                     </div>
                 {% else %}
-                    <form action="{% url 'send_friend_request' user_data.user.username %}" method="post">
+                    <form id="send-friend-form" action="{% url 'send_friend_request' user_data.user.username %}" method="post">
                         {% csrf_token %}
-                        <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Add Friend</button>
+                        <button id="add-friend-btn" type="submit" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-full transition transform hover:scale-105 hover:brightness-110 shadow-sm">Add Friend</button>
                     </form>
                 {% endif %}
             </div>
@@ -330,6 +332,61 @@ document.addEventListener('DOMContentLoaded', function () {
     } catch (err) {
         console.error('Error wiring bio edit buttons', err);
     }
+});
+</script>
+<script>
+// AJAX send-friend form handler: prevents full-page navigation and swaps the UI on success.
+document.addEventListener('DOMContentLoaded', function () {
+    const sendForm = document.getElementById('send-friend-form');
+    if (!sendForm) return;
+
+    function getCsrfToken() {
+        const cookie = document.cookie.split(';').map(c=>c.trim()).find(c=>c.startsWith('csrftoken='));
+        return cookie ? cookie.split('=')[1] : '';
+    }
+
+    sendForm.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const submitBtn = sendForm.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+
+        const formData = new FormData(sendForm);
+        const csrftoken = getCsrfToken();
+
+        try {
+            const resp = await fetch(sendForm.action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData,
+                credentials: 'same-origin',
+                redirect: 'follow'
+            });
+
+            // Try to parse JSON if present
+            let data = null;
+            try { data = await resp.clone().json(); } catch (err) { data = null; }
+
+            // Treat any 2xx or 3xx as success (covers redirects and HTML responses) or explicit JSON success flag
+            if ((data && data.success) || (resp.status >= 200 && resp.status < 400)) {
+                const wrapper = sendForm.parentElement;
+                if (wrapper) {
+                    wrapper.innerHTML = '<p class="text-yellow-500">Friend Request Sent</p>';
+                }
+            } else {
+                let msg = 'Failed to send friend request.';
+                if (data && data.error) msg = data.error;
+                alert(msg);
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        } catch (err) {
+            console.error('Error sending friend request:', err);
+            alert('Network error while sending friend request.');
+            if (submitBtn) submitBtn.disabled = false;
+        }
+    });
 });
 </script>
 {% endblock %}

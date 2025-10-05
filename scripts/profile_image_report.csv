@@ -1,0 +1,6 @@
+username,image_name,image_url,file_exists
+test_bio_user,,,False
+smoketestuser,,,False
+admin123,profile_images/test.png,/media/profile_images/test.png,False
+anidabbb,profile_images/photo-1724391114112-c83ad59f1d5f.jpeg,/media/profile_images/photo-1724391114112-c83ad59f1d5f.jpeg,False
+lmaoitsyogi,profile_images/Image_250423_183414.jpeg,/media/profile_images/Image_250423_183414.jpeg,True

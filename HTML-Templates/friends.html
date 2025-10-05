@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+
+{% block title %}Friends - Matchify{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-b from-black via-[#0c0c0c] to-[#121212] text-white px-4 py-10">
+  <div class="max-w-6xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-3xl font-semibold">Friends</h1>
+      <a href="{% url 'mapify' %}" class="text-sm text-green-400 hover:underline">Find more →</a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+      <!-- Current Friends -->
+      <section class="bg-[#0f1113] border border-gray-800 p-6 rounded-lg shadow-md min-h-[12rem]">
+        <h2 class="text-lg font-semibold mb-4 text-white">Current Friends</h2>
+        {% if friends and friends|length > 0 %}
+          <ul class="space-y-4">
+            {% for f in friends %}
+              <li class="friend-item flex items-center justify-between relative">
+                <div class="flex items-center space-x-4">
+                  <div class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center font-bold text-white text-lg">{{ f.username|slice:":1"|upper }}</div>
+                  <div class="text-white font-medium">{{ f.username }}</div>
+                </div>
+                <!-- overlay actions (appear on hover) -->
+                <div class="overlay-actions absolute right-6 top-1/2 transform -translate-y-1/2 hidden md:flex items-center space-x-2">
+                  <form method="post" action="{% url 'remove_friend' f.username %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-overlay-danger">Remove</button>
+                  </form>
+                  <a href="{% url 'profile' f.username %}" class="btn-overlay">View</a>
+                </div>
+                <!-- also keep accessible inline actions for small screens -->
+                <div class="inline-actions flex items-center space-x-3 md:hidden">
+                  <form method="post" action="{% url 'remove_friend' f.username %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-overlay-danger">Remove</button>
+                  </form>
+                  <a href="{% url 'profile' f.username %}" class="btn-overlay">View</a>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-gray-400">You have no friends yet.</p>
+        {% endif %}
+      </section>
+
+      <!-- Incoming Requests -->
+      <section class="bg-[#0f1113] border border-gray-800 p-6 rounded-lg shadow-md min-h-[12rem]">
+        <h2 class="text-lg font-semibold mb-4 text-white">Incoming Requests</h2>
+        {% if incoming_requests and incoming_requests|length > 0 %}
+          <ul class="space-y-4">
+            {% for r in incoming_requests %}
+              <li class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                  <div class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center font-bold text-white text-lg">{{ r.from_username|slice:":1"|upper }}</div>
+                  <div class="text-white font-medium">{{ r.from_username }}</div>
+                </div>
+                <div class="flex items-center space-x-3">
+                  <form method="post" action="{% url 'accept_friend_request' r.from_username %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-action-primary">Accept</button>
+                  </form>
+                  <form method="post" action="{% url 'reject_friend_request' r.from_username %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-action-danger">Reject</button>
+                  </form>
+                  <a href="{% url 'profile' r.from_username %}" class="btn-action">View</a>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-gray-400">No incoming requests.</p>
+        {% endif %}
+      </section>
+
+      <!-- Sent Requests -->
+      <section class="bg-[#0f1113] border border-gray-800 p-6 rounded-lg shadow-md min-h-[12rem]">
+        <h2 class="text-lg font-semibold mb-4 text-white">Sent Requests</h2>
+        {% if sent_requests and sent_requests|length > 0 %}
+          <ul class="space-y-4">
+            {% for r in sent_requests %}
+              <li class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                  <div class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center font-bold text-white text-lg">{{ r.to_username|slice:":1"|upper }}</div>
+                  <div class="text-white font-medium">{{ r.to_username }}</div>
+                </div>
+                <div class="flex items-center space-x-3">
+                  <form method="post" action="{% url 'cancel_friend_request' r.to_username %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-action-warning">Cancel</button>
+                  </form>
+                  <a href="{% url 'profile' r.to_username %}" class="btn-action">View</a>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-gray-400">No sent requests.</p>
+        {% endif %}
+      </section>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block styles %}
+<style>
+  /* Button helpers to keep styles consistent */
+  .btn-action {
+    display: inline-flex; align-items:center; justify-content:center;
+    background-color:#1f2937; color:#fff; padding:8px 14px; border-radius:9999px; text-decoration:none; font-size:0.9rem;
+  }
+  .btn-action:hover { background-color:#111827; }
+  .btn-action-primary { background-color:#16a34a; color:white; padding:8px 14px; border-radius:9999px; }
+  .btn-action-primary:hover { background-color:#15803d; }
+  .btn-action-danger { background-color:#ef4444; color:white; padding:8px 14px; border-radius:9999px; }
+  .btn-action-danger:hover { background-color:#dc2626; }
+  .btn-action-warning { background-color:#f59e0b; color:#111827; padding:8px 14px; border-radius:9999px; }
+  .btn-action-warning:hover { background-color:#d97706; }
+  /* overlay-style small buttons used on the current friends list */
+  .btn-overlay {
+    display:inline-flex; align-items:center; justify-content:center; padding:6px 10px; border-radius:9999px; background:#111827; color:#fff; font-size:0.85rem; text-decoration:none;
+  }
+  .btn-overlay:hover { background:#0b1220; }
+  .btn-overlay-danger {
+    background: #10b981; /* green-500 */
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 9999px;
+    font-size: 0.85rem;
+    border: none;
+  }
+  .btn-overlay-danger:hover {
+    background: #059669; /* green-600 */
+  }
+  .friend-item:hover .overlay-actions { display:flex; }
+  .overlay-actions { transition: opacity 140ms ease-in-out; opacity: 1; }
+  .friend-item .inline-actions { display:none; }
+  @media (max-width: 767px) {
+    .overlay-actions { display:none !important; }
+    .friend-item .inline-actions { display:flex; }
+  }
+</style>
+{% endblock %}
