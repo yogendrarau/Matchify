@@ -32,14 +32,11 @@ def run():
     username = 'smoketestuser'
     password = 'Sm0keTestPass!'
 
-    # Clean up if user exists
-    try:
-        User.objects.filter(username=username).delete()
-    except Exception:
-        pass
-
-    user = User.objects.create_user(username=username, email='smoke@example.com', password=password)
-    print('Created test user:', user.username)
+    # Ensure test user exists (create or reuse); set password to known value
+    user, created = User.objects.get_or_create(username=username, defaults={'email': 'smoke@example.com'})
+    user.set_password(password)
+    user.save()
+    print(('Created test user:' if created else 'Reused test user:'), user.username)
 
     client = Client()
     logged_in = client.login(username=username, password=password)
