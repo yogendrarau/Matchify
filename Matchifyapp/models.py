@@ -8,15 +8,10 @@ class Profile(models.Model):
     bio = models.TextField(blank=True, null=True)
     # Profile image field for user avatars. Use db_column 'avatar' to match the
     # existing database column (some environments already have an 'avatar' column).
-<<<<<<< HEAD
     image = models.ImageField(upload_to='profile_images/', blank=True, null=True, db_column='avatar')
     # Optional JSON blob to store a small representation of the user's chosen display song
     # Example: {"id": "spotify:track:...", "name": "Song Name", "artist": "Artist", "album_art": "https://..."}
     display_song = models.JSONField(blank=True, null=True)
-=======
-    # Use FileField instead of ImageField to avoid requiring Pillow at runtime.
-    image = models.FileField(upload_to='profile_images/', blank=True, null=True, db_column='avatar')
->>>>>>> 0c1318ef5bfe40a1a446f65ecfe19c072fec7604
 
     def __str__(self):
         return f"Profile({self.user.username})"

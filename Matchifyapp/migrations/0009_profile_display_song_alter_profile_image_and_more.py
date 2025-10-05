@@ -20,7 +20,8 @@ class Migration(migrations.Migration):
             name='image',
             field=models.ImageField(blank=True, db_column='avatar', null=True, upload_to='profile_images/'),
         ),
-        migrations.DeleteModel(
-            name='ProfileAvatar',
-        ),
+        # ProfileAvatar was removed by another migration (0009_artistlisten...).
+        # This DeleteModel was duplicated across two independent 0009 files
+        # and caused a KeyError during migration graph construction. Removing
+        # the duplicate entry here keeps the model deletion only once.
     ]

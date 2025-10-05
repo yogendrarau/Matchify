@@ -114,33 +114,6 @@
                     </div>
                 {% endif %}
 
-                <!-- Display Song Section -->
-                <div id="display-song-section" class="mt-6">
-                    <h4 class="text-lg font-medium text-white">Display Song</h4>
-                    <div id="current-display-song" class="mt-2 text-gray-300">
-                        {% if user_data.display_song %}
-                            <div class="flex items-center space-x-3">
-                                <img src="{{ user_data.display_song.album_art }}" alt="{{ user_data.display_song.name }}" class="w-12 h-12 rounded object-cover" />
-                                <div>
-                                    <div class="font-semibold text-white">{{ user_data.display_song.name }}</div>
-                                    <div class="text-xs text-gray-400">{{ user_data.display_song.artist }}</div>
-                                </div>
-                                <button id="clear-display-song" class="ml-auto bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm">Clear</button>
-                            </div>
-                        {% else %}
-                            <div class="text-gray-400">No display song set. Search below to choose one.</div>
-                        {% endif %}
-                    </div>
-
-                    {% if user_data.is_current_user %}
-                    <div class="mt-3">
-                        <input id="display-song-search" type="search" placeholder="Search tracks..." class="w-full p-2 rounded bg-gray-800 text-white" />
-                        <div id="display-song-results" class="mt-2 space-y-2"></div>
-                        <div id="display-song-spinner" class="hidden text-sm text-gray-400 mt-2">Searching…</div>
-                    </div>
-                    {% endif %}
-                </div>
-
                 <h4 class="mt-6 text-lg font-medium text-white">Top Artists Recently</h4>
                 <div class="mt-2 text-gray-300">
                     {% if user_data.top_artists %}
@@ -165,8 +138,37 @@
                 </div>
             </div>
 
-            <aside class="bg-gray-900 p-4 rounded self-start h-auto">
-                <h3 class="text-lg font-medium mb-2 text-white">Top Songs</h3>
+            <aside class="space-y-6">
+                <!-- Display Song panel -->
+                <div class="bg-gray-900 p-4 rounded">
+                    <h3 class="text-lg font-medium mb-2 text-white">Favorite Song</h3>
+                    <div id="current-display-song" class="mt-2 text-gray-300">
+                        {% if user_data.display_song %}
+                            <div class="flex items-center space-x-3">
+                                <img src="{{ user_data.display_song.album_art }}" alt="{{ user_data.display_song.name }}" class="w-12 h-12 rounded object-cover" />
+                                <div>`
+                                    <div class="font-semibold text-white">{{ user_data.display_song.name }}</div>
+                                    <div class="text-xs text-gray-400">{{ user_data.display_song.artist }}</div>
+                                </div>
+                                <button id="clear-display-song" class="ml-auto bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm">Clear</button>
+                            </div>
+                        {% else %}
+                            <div class="text-gray-400">No display song set. Search below to choose one.</div>
+                        {% endif %}
+                    </div>
+
+                    {% if user_data.is_current_user %}
+                    <div class="mt-3">
+                        <input id="display-song-search" type="search" placeholder="Search tracks..." class="w-full p-2 rounded bg-gray-800 text-white" />
+                        <div id="display-song-results" class="mt-2 space-y-2"></div>
+                        <div id="display-song-spinner" class="hidden text-sm text-gray-400 mt-2">Searching…</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Top Songs panel -->
+                <div class="bg-gray-900 p-4 rounded self-start h-auto">
+                    <h3 class="text-lg font-medium mb-2 text-white">Top Songs</h3>
                 <div class="flex gap-2 mb-3">
                     <a href="?tracks_range=short_term" class="tracks-range-btn px-3 py-1 rounded text-sm transition transform hover:scale-105 shadow-sm {% if user_data.tracks_range == 'short_term' %}bg-green-700 text-white ring-2 ring-green-400{% else %}bg-green-600 text-white hover:bg-green-700 hover:brightness-110{% endif %}" data-range="short_term">4 Weeks</a>
                     <a href="?tracks_range=medium_term" class="tracks-range-btn px-3 py-1 rounded text-sm transition transform hover:scale-105 shadow-sm {% if user_data.tracks_range == 'medium_term' %}bg-green-700 text-white ring-2 ring-green-400{% else %}bg-green-600 text-white hover:bg-green-700 hover:brightness-110{% endif %}" data-range="medium_term">6 Months</a>
