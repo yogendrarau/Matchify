@@ -29,7 +29,17 @@ from .models import Post
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ['content']
+        fields = ['content', 'image']
         widgets = {
-            'content': forms.Textarea(attrs={'rows':4, 'placeholder':'Share something with the community...'})
+            'content': forms.Textarea(attrs={
+                'rows': 4,
+                'placeholder': 'Share something with the community...',
+                'class': 'w-full p-3 rounded bg-gray-900 text-white placeholder-gray-400'
+            })
         }
+        labels = {
+            'content': ''
+        }
+
+    from django.forms import ClearableFileInput
+    image = forms.FileField(required=False, widget=ClearableFileInput(attrs={'class': 'hidden', 'id': 'post-image-input'}))

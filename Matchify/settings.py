@@ -144,6 +144,10 @@ STATICFILES_DIRS = [
 # This is only used when running `collectstatic`
 STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
 
+# Media files (user uploads)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
 from django.contrib.messages import constants as message_constants
 
 MESSAGE_TAGS = {
