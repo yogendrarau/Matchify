@@ -41,4 +41,6 @@ urlpatterns = [
     path('api/swipe/next', views.api_swipe_next, name='api_swipe_next'),
     path('api/swipe/action', views.api_swipe_action, name='api_swipe_action'),
     path('upload-profile-image/', views.upload_profile_image, name='upload_profile_image'),
+    path('set-display-song/', views.set_display_song, name='set_display_song'),
+    path('search-track', views.search_track, name='search_track'),
 ]

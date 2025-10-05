@@ -826,6 +826,7 @@ def profile(request, username):
         'profile_exists': profile_exists,
         'profile_bio': profile_bio,
         'author_avatar_url': author_avatar_url,
+        'display_song': getattr(prof, 'display_song', None) if profile_exists else None,
     }
 
     # If a flash message exists for edit success, include it
@@ -1323,6 +1324,83 @@ def get_all_users(request):
     """
     users = get_user_model().objects.filter(is_active=True).values("id", "username")  # Filter active users
     return JsonResponse({"users": list(users)})
+
+
+@login_required
+def set_display_song(request):
+    """AJAX endpoint to set or clear the current user's profile.display_song JSON field.
+       Expects POST JSON: { action: 'set', track: {...} } or { action: 'clear' }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=400)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        data = request.POST or {}
+
+    action = data.get('action')
+    try:
+        from .models import Profile
+        profile = Profile.objects.filter(user=request.user).first()
+        if not profile:
+            profile = Profile.objects.create(user=request.user)
+
+        if action == 'clear':
+            profile.display_song = None
+            profile.save()
+            return JsonResponse({'success': True})
+
+        if action == 'set':
+            track = data.get('track') or {}
+            # store a subset to reduce DB size
+            stored = {
+                'id': track.get('id'),
+                'name': track.get('name'),
+                'artist': track.get('artist'),
+                'album_art': track.get('album_art')
+            }
+            profile.display_song = stored
+            profile.save()
+            return JsonResponse({'success': True})
+
+        return JsonResponse({'success': False, 'error': 'invalid_action'}, status=400)
+    except Exception as e:
+        logger.exception('set_display_song error')
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+def search_track(request):
+    """Search tracks using Spotify API if the user has tokens; otherwise return empty list."""
+    q = request.GET.get('q', '').strip()
+    if not q:
+        return JsonResponse({'tracks': []})
+
+    token = get_token(request.user)
+    if not token:
+        return JsonResponse({'tracks': []})
+
+    try:
+        url = 'https://api.spotify.com/v1/search'
+        headers = get_auth_header(request.user)
+        params = {'q': q, 'type': 'track', 'limit': 8}
+        resp = requests.get(url, headers=headers, params=params)
+        if resp.status_code != 200:
+            return JsonResponse({'tracks': []})
+        js = resp.json()
+        items = js.get('tracks', {}).get('items', [])
+        tracks = []
+        for it in items:
+            tracks.append({
+                'id': it.get('id'),
+                'name': it.get('name'),
+                'artist': ', '.join([a.get('name') for a in it.get('artists', [])]),
+                'album_art': it.get('album', {}).get('images', [{}])[0].get('url')
+            })
+        return JsonResponse({'tracks': tracks})
+    except Exception:
+        return JsonResponse({'tracks': []})
 
 
 @login_required
