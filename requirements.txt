@@ -5,4 +5,4 @@ python-dotenv==1.0.1
 Requests==2.32.3
 spotipy==2.25.0
 psycopg2-binary==2.9.10  # Add the PostgreSQL database driver
-Pillow==10.1.0
+Pillow==10.3.0
